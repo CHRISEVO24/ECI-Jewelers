@@ -61,7 +61,11 @@
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
   .pill.in{background:var(--green-bg);color:var(--green);}
   .pill.out{background:var(--red-bg);color:var(--red);}
-  .desc-cell{max-width:280px;color:var(--muted);font-size:12px;}
+  /* Full description text always lives in the data (and export); this just
+     visually clamps the table cell to 2 lines so the dashboard stays clean.
+     Hover shows the full text via the title tooltip. */
+  .desc-cell{max-width:280px;color:var(--muted);font-size:12px;cursor:help;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;}
   .up{color:var(--green);font-weight:600;}
   .down{color:var(--red);font-weight:600;}
   .empty{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
@@ -484,7 +488,7 @@ function renderInventory() {
       <td>${escapeHtml(p.price)}</td>
       <td>${escapeHtml(p.year)||"—"}</td>
       <td>${escapeHtml(p.brand)||"—"}</td>
-      <td class="desc-cell">${escapeHtml(p.description)}</td>
+      <td class="desc-cell" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</td>
       <td><a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View ↗</a></td>
     </tr>`).join("");
   updateSelectionUI();
