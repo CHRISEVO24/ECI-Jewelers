@@ -51,6 +51,7 @@
   table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13px;}
   thead th{background:#f7f8fb;text-align:left;padding:9px 10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .buy-price-cell{text-align:center;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#fafbfd;}
   .watch-name{font-weight:600;}
@@ -133,7 +134,7 @@
           <th style="width:32px;"><input type="checkbox" id="invSelectAll" onchange="toggleSelectAll(this.checked)"></th>
           <th>Image</th>
           <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Stock Status</th>
-          <th>Price</th><th>WPB Watch Co Buy Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
+          <th>Price</th><th class="buy-price-cell">WPB Watch Co Buy Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
         </tr></thead>
         <tbody id="invBody"></tbody>
       </table>
@@ -496,7 +497,7 @@ function renderInventory() {
       <td>${escapeHtml(p.productCode)||"—"}</td>
       <td><span class="pill ${p.inStock?"in":"out"}">${escapeHtml(p.stockStatus)}</span></td>
       <td>${escapeHtml(p.price)}</td>
-      <td>${wpbBuyPrice(p)||"—"}</td>
+      <td class="buy-price-cell">${wpbBuyPrice(p)||"—"}</td>
       <td>${escapeHtml(p.year)||"—"}</td>
       <td>${escapeHtml(p.brand)||"—"}</td>
       <td class="desc-cell" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</td>
