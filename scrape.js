@@ -149,6 +149,9 @@ function buildProduct(p) {
     year:            deriveYear(attrs, p.tags, p.title),
     box:             attrs["Box"] || "",
     papers:          attrs["Papers"] || attrs["Warranty Paper/Card"] || "",
+    // Site's own condition wording (e.g. "Good", "Very Good", "Excellent") —
+    // used by the dashboard's Facebook export to map into FB's fixed enum.
+    condition:       attrs["Condition"] || "",
     // Full, untruncated description — the dashboard visually clamps this to a
     // couple lines for a clean table (CSS, not data loss), but Excel exports
     // and the underlying history.json always carry the complete text.
@@ -167,7 +170,6 @@ function buildFullProduct(p) {
     bracelet:      attrs["Bracelet"]       || "",
     dial:          attrs["Dial"]           || "",
     bezel:         attrs["Bezel"]          || "",
-    condition:     attrs["Condition"]      || "",
     serialNumber:  attrs["Serial Number"]  || "",
     size:          attrs["Size"]           || "",
     warrantyCard:  attrs["Warranty Card"]  || "",
