@@ -1,9 +1,13 @@
 name: ECI Jewelers Daily Inventory Scrape
 
 on:
-  schedule:
-    - cron: '1 10 * * *'
-    - cron: '1 14 * * *'
+  # No `schedule:` cron here on purpose — the run is triggered externally by
+  # cron-job.org (hitting this workflow's `workflow_dispatch` via the GitHub
+  # API) at 6am and 3pm ET, same as the WPB tracker. Having both an internal
+  # GitHub Actions cron AND the external pinger fire around the same time
+  # causes two overlapping scraper runs that race to commit/push, which is
+  # what produced the "cannot pull with rebase" / "rejected... fetch first"
+  # errors. Only one trigger source should exist at a time.
   workflow_dispatch:
 
 permissions:
@@ -42,9 +46,33 @@ jobs:
         run: |
           git config --global user.name "ECI Jewelers Scraper Bot"
           git config --global user.email "scraper@eci-jewelers-tracker.local"
-          git pull --rebase origin main || true
+
+          # --autostash handles the case where scrape.js already modified
+          # history.json/last-run.json on disk before we pull (those are
+          # unstaged changes, which used to make `git pull --rebase` fail
+          # outright with "cannot pull with rebase: you have unstaged
+          # changes").
+          git pull --rebase --autostash origin main || true
+
           git add history.json last-run.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Auto update - $(TZ='America/New_York' date '+%Y-%m-%d %I:%M %p ET')"
-          git push
+
+          # Retry the push a few times in case another run (e.g. a manual
+          # trigger overlapping the scheduled one) pushed in between our
+          # pull and our push — re-pull and try again rather than failing
+          # the whole job.
+          for attempt in 1 2 3; do
+            if git push; then
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Push rejected (another run likely pushed first), re-pulling and retrying..."
+              sleep 10
+              git pull --rebase --autostash origin main || true
+            else
+              echo "Push failed after 3 attempts"
+              exit 1
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
