@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Links of NY — Inventory Tracker</title>
+<title>ECI Jewelers — Inventory Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -80,7 +80,7 @@
 <header>
   <div class="logo">⌚</div>
   <div>
-    <h1>Links of NY — Inventory Tracker</h1>
+    <h1>ECI Jewelers — Inventory Tracker</h1>
     <p id="headerSub">Loading latest inventory data…</p>
   </div>
 </header>
@@ -207,7 +207,7 @@
   </div>
 </main>
 
-<footer>Links of NY Inventory Tracker · data refreshes on each automated snapshot</footer>
+<footer>ECI Jewelers Inventory Tracker · data refreshes on each automated snapshot</footer>
 
 <script>
 let history = {};       // { "YYYY-MM-DD HH:MM": { id: product } }
@@ -248,7 +248,7 @@ function loadSampleData() {
   const t1 = new Date(now.getTime() - 1*24*3600*1000);
   const t2 = now;
   const mk = (id, name, ref, sku, price, year, brand, inStock, image, condition) => ({
-    id, name, price: "$"+price.toLocaleString("en-US"), url: "https://linksofny.com/products/sample",
+    id, name, price: "$"+price.toLocaleString("en-US"), url: "https://ecijewelers.com/products/sample",
     image: image || "",
     categories: brand, inStock, referenceNumber: ref, productCode: sku,
     stockStatus: inStock ? "In Stock" : "Sold / Out of Stock", brand, year: String(year),
@@ -682,7 +682,7 @@ function exportFacebook() {
   ws["!cols"] = [{wch:45},{wch:10},{wch:16},{wch:60},{wch:55}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Bulk Upload Template");
-  XLSX.writeFile(wb, "links-of-ny-facebook-marketplace.xlsx");
+  XLSX.writeFile(wb, "eci-jewelers-facebook-marketplace.xlsx");
 }
 
 // ── Export ───────────────────────────────────────────────────────────────
@@ -704,21 +704,21 @@ function exportTable(which) {
       Description: p.productCode ? `${p.description}\n\nDealer SKU: ${p.productCode}` : p.description,
       "Product URL": p.url, "Image URL": p.image || "",
     }));
-    filename = "links-of-ny-inventory.xlsx";
+    filename = "eci-jewelers-inventory.xlsx";
   } else if (which === "changes") {
     const tag = (rows,label) => rows.map(p => ({
       Type: label, Watch: p.name, "Reference Number": p.referenceNumber,
       "Dealer SKU": p.productCode, Price: p.price, Brand: p.brand, URL: p.url,
     }));
     data = [...tag(changesResult.newItems,"New / Back In Stock"), ...tag(changesResult.soldItems,"Sold / Removed")];
-    filename = "links-of-ny-changes.xlsx";
+    filename = "eci-jewelers-changes.xlsx";
   } else if (which === "prices") {
     data = pricesResult.map(c => ({
       Watch: c.name, "Reference Number": c.referenceNumber, "Dealer SKU": c.productCode,
       "Old Price": c.oldPrice, "New Price": c.newPrice, "Change ($)": c.changeAbs,
       "Change (%)": c.changePct.toFixed(1), Brand: c.brand, URL: c.url,
     }));
-    filename = "links-of-ny-price-changes.xlsx";
+    filename = "eci-jewelers-price-changes.xlsx";
   }
   if (data.length === 0) { alert("Nothing to export yet — adjust filters or run a report first."); return; }
   const ws = XLSX.utils.json_to_sheet(data);
