@@ -3,7 +3,7 @@ name: Links of NY Daily Inventory Scrape
 on:
   schedule:
     - cron: '0 10 * * *'   # 6:00am ET during EDT (UTC-4, roughly Mar–Nov); 5:00am ET during EST
-    - cron: '0 19 * * *'   # 3:00pm ET during EDT (UTC-4, roughly Mar–Nov); 2:00pm ET during EST
+    - cron: '0 14 * * *'   # 3:00pm ET during EDT (UTC-4, roughly Mar–Nov); 2:00pm ET during EST
   workflow_dispatch:
 permissions:
   contents: write
