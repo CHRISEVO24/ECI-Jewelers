@@ -698,7 +698,11 @@ function exportTable(which) {
     data = source.map(p => ({
       Watch: p.name, "Reference Number": p.referenceNumber, "Dealer SKU": p.productCode,
       "Stock Status": p.stockStatus, Price: p.price, Year: p.year, Brand: p.brand,
-      Description: p.description, "Product URL": p.url, "Image URL": p.image || "",
+      // Dealer SKU also appended at the bottom of the description text itself
+      // (not just its own column) so it travels with the description if it's
+      // ever copied/pasted elsewhere.
+      Description: p.productCode ? `${p.description}\n\nDealer SKU: ${p.productCode}` : p.description,
+      "Product URL": p.url, "Image URL": p.image || "",
     }));
     filename = "links-of-ny-inventory.xlsx";
   } else if (which === "changes") {
