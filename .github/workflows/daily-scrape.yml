@@ -4,7 +4,8 @@ on:
   schedule:
     - cron: '1 10 * * *'   # ~6:01am ET (adjust if you want a different time)
   workflow_dispatch:
-
+permissions:
+  contents: write
 jobs:
   scrape:
     runs-on: ubuntu-latest
@@ -53,8 +54,8 @@ jobs:
         run: |
           git config --global user.name "Links of NY Scraper Bot"
           git config --global user.email "scraper@linksofny-tracker.local"
-          git add last-run.json 2>/dev/null || true
           git pull --rebase origin main || true
+          git add last-run.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Auto update [skip ci] - $(TZ='America/New_York' date '+%Y-%m-%d %I:%M %p ET')"
           git push
         env:
