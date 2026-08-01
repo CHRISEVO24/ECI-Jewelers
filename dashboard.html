@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Links of NY — Inventory Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#10182b; --navy2:#182240; --gold:#c9a24b; --gold-d:#a9853a;
+    --bg:#f4f5f8; --card:#ffffff; --border:#e3e6ee; --text:#1c2333; --muted:#6b7280;
+    --green:#1a9d5c; --green-bg:#e9f9f1; --red:#d5493a; --red-bg:#fdecea;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:22px 28px;display:flex;align-items:center;gap:14px;}
+  header .logo{font-size:28px;}
+  header h1{font-size:19px;margin:0;font-weight:600;letter-spacing:.3px;}
+  header p{margin:2px 0 0;font-size:12.5px;color:#b9c0d6;}
+  #loadPanel{max-width:520px;margin:60px auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center;box-shadow:0 2px 10px rgba(20,20,40,.05);}
+  #loadPanel h2{margin-top:0;font-size:16px;}
+  #loadPanel .status{color:var(--muted);font-size:13.5px;margin-bottom:16px;}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:9px 16px;font-size:13px;cursor:pointer;font-weight:500;}
+  .btn:hover{background:var(--navy2);}
+  .btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--border);}
+  .btn.secondary:hover{background:#f0f1f5;}
+  .btn.gold{background:var(--gold);color:#241b04;}
+  .btn.gold:hover{background:var(--gold-d);}
+  main{max-width:1360px;margin:0 auto;padding:20px 24px 60px;display:none;}
+  main.active{display:block;}
+  .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+  .tab{padding:10px 16px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;user-select:none;}
+  .tab.active{color:var(--navy);border-bottom-color:var(--gold);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+  .card .icon{font-size:18px;}
+  .card .val{font-size:22px;font-weight:700;margin:4px 0 0;}
+  .card .lbl{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;}
+  .toolbar input[type=text],.toolbar select{padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;color:var(--text);}
+  .toolbar input[type=text]{flex:1;min-width:160px;}
+  .toolbar .spacer{flex:1;}
+  .rangebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;}
+  .rangebar select{padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .rangebar .quick{display:flex;gap:6px;flex-wrap:wrap;}
+  .rangebar .quick button{background:#eef0f6;border:1px solid var(--border);border-radius:16px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);}
+  .rangebar .quick button:hover{background:#e2e5ee;}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13px;}
+  thead th{background:#f7f8fb;text-align:left;padding:9px 10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbfd;}
+  .watch-name a{color:var(--navy);text-decoration:none;font-weight:600;}
+  .watch-name a:hover{text-decoration:underline;}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+  .pill.in{background:var(--green-bg);color:var(--green);}
+  .pill.out{background:var(--red-bg);color:var(--red);}
+  .desc-cell{max-width:280px;color:var(--muted);font-size:12px;}
+  .up{color:var(--green);font-weight:600;}
+  .down{color:var(--red);font-weight:600;}
+  .empty{padding:30px;text-align:center;color:var(--muted);font-size:13px;}
+  .table-wrap{overflow-x:auto;}
+  .count-line{font-size:12.5px;color:var(--muted);margin:2px 2px 10px;}
+  #fileInput{display:none;}
+  footer{text-align:center;color:var(--muted);font-size:11.5px;padding:20px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⌚</div>
+  <div>
+    <h1>Links of NY — Inventory Tracker</h1>
+    <p id="headerSub">Loading latest inventory data…</p>
+  </div>
+</header>
+
+<div id="loadPanel">
+  <h2>Load inventory data</h2>
+  <div class="status" id="loadStatus">Trying to fetch <code>history.json</code> automatically…</div>
+  <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+    <button class="btn secondary" onclick="document.getElementById('fileInput').click()">📂 Load history.json manually</button>
+    <button class="btn secondary" onclick="loadSampleData()">Preview with sample data</button>
+  </div>
+  <input type="file" id="fileInput" accept="application/json">
+</div>
+
+<main id="app">
+  <div class="tabs">
+    <div class="tab active" data-tab="inventory">📦 Current Inventory</div>
+    <div class="tab" data-tab="changes">🔄 Changes / Sold</div>
+    <div class="tab" data-tab="prices">💲 Price Changes</div>
+  </div>
+
+  <!-- INVENTORY -->
+  <div class="panel active" id="panel-inventory">
+    <div class="toolbar">
+      <input type="text" id="invSearch" placeholder="🔍 Search watch, reference #, SKU…">
+      <select id="invBrand"><option value="">All Brands</option></select>
+      <select id="invPrice">
+        <option value="">All Prices</option>
+        <option value="0-5000">Under $5,000</option>
+        <option value="5000-10000">$5,000 – $10,000</option>
+        <option value="10000-20000">$10,000 – $20,000</option>
+        <option value="20000-999999999">$20,000+</option>
+      </select>
+      <select id="invYear"><option value="">All Years</option></select>
+      <select id="invStock">
+        <option value="">All Status</option>
+        <option value="in">In Stock</option>
+        <option value="out">Sold / Out of Stock</option>
+      </select>
+      <button class="btn secondary" onclick="clearInvFilters()">✕ Clear All</button>
+      <div class="spacer"></div>
+      <button class="btn gold" onclick="exportTable('inventory')">⬇ Export to Excel</button>
+    </div>
+    <div class="count-line" id="invCount">—</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Stock Status</th>
+          <th>Price</th><th>Year</th><th>Brand</th><th>Description</th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CHANGES / SOLD -->
+  <div class="panel" id="panel-changes">
+    <div class="rangebar">
+      <label style="font-size:12px;color:var(--muted);">From</label>
+      <select id="chFrom"></select>
+      <label style="font-size:12px;color:var(--muted);">To</label>
+      <select id="chTo"></select>
+      <div class="quick" id="chQuick"></div>
+      <button class="btn" onclick="runChangesReport()">Run Report</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="icon">🟢</div><div class="val" id="chNewCount">—</div><div class="lbl">New / Back In Stock</div></div>
+      <div class="card"><div class="icon">🔴</div><div class="val" id="chSoldCount">—</div><div class="lbl">Sold / Removed</div></div>
+      <div class="card"><div class="icon">📦</div><div class="val" id="chInStockNow">—</div><div class="lbl">In Stock Now (as of "to")</div></div>
+      <div class="card"><div class="icon">📸</div><div class="val" id="chSnapCount">—</div><div class="lbl">Total Snapshots</div></div>
+    </div>
+
+    <h3 style="font-size:14px;margin:20px 0 8px;">🟢 New Arrivals / Back In Stock</h3>
+    <div class="table-wrap">
+      <table><thead><tr><th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Price</th><th>Brand</th></tr></thead>
+      <tbody id="chNewBody"><tr><td class="empty" colspan="5">Pick a range and click Run Report.</td></tr></tbody></table>
+    </div>
+
+    <h3 style="font-size:14px;margin:20px 0 8px;">🔴 Sold / Removed</h3>
+    <div class="table-wrap">
+      <table><thead><tr><th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Price</th><th>Brand</th></tr></thead>
+      <tbody id="chSoldBody"><tr><td class="empty" colspan="5">Pick a range and click Run Report.</td></tr></tbody></table>
+    </div>
+    <div style="margin-top:10px;"><button class="btn gold" onclick="exportTable('changes')">⬇ Export to Excel</button></div>
+  </div>
+
+  <!-- PRICE CHANGES -->
+  <div class="panel" id="panel-prices">
+    <div class="rangebar">
+      <label style="font-size:12px;color:var(--muted);">From</label>
+      <select id="prFrom"></select>
+      <label style="font-size:12px;color:var(--muted);">To</label>
+      <select id="prTo"></select>
+      <div class="quick" id="prQuick"></div>
+      <button class="btn" onclick="runPriceReport()">Run Report</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="icon">📈</div><div class="val" id="prIncCount">—</div><div class="lbl">Price Increases</div></div>
+      <div class="card"><div class="icon">📉</div><div class="val" id="prDecCount">—</div><div class="lbl">Price Decreases</div></div>
+      <div class="card"><div class="icon">💲</div><div class="val" id="prAvgChange">—</div><div class="lbl">Avg Change (across changed)</div></div>
+      <div class="card"><div class="icon">📦</div><div class="val" id="prCompared">—</div><div class="lbl">Watches Compared</div></div>
+    </div>
+    <div class="toolbar">
+      <select id="prDirection">
+        <option value="">All Changes</option>
+        <option value="up">Price Increases</option>
+        <option value="down">Price Decreases</option>
+      </select>
+      <select id="prBrand"><option value="">All Brands</option></select>
+      <div class="spacer"></div>
+      <button class="btn gold" onclick="exportTable('prices')">⬇ Export to Excel</button>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Old Price</th><th>New Price</th>
+        <th>Change ($)</th><th>Change (%)</th><th>Brand</th>
+      </tr></thead>
+      <tbody id="prBody"><tr><td class="empty" colspan="8">Pick two snapshots and click Run Report to see price changes.</td></tr></tbody></table>
+    </div>
+  </div>
+</main>
+
+<footer>Links of NY Inventory Tracker · data refreshes on each automated snapshot</footer>
+
+<script>
+let history = {};       // { "YYYY-MM-DD HH:MM": { id: product } }
+let snapKeys = [];       // sorted ascending
+let latestSnap = {};
+let changesResult = { newItems: [], soldItems: [] };
+let pricesResult = [];
+
+// ── Loading ──────────────────────────────────────────────────────────────
+
+async function init() {
+  try {
+    const res = await fetch("history.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("not found");
+    const data = await res.json();
+    setHistory(data);
+  } catch (e) {
+    document.getElementById("loadStatus").textContent =
+      "Couldn't auto-load history.json (open this file directly via Netlify, or load it manually below).";
+  }
+}
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try { setHistory(JSON.parse(evt.target.result)); }
+    catch (err) { alert("That file doesn't look like a valid history.json"); }
+  };
+  reader.readAsText(file);
+});
+
+function loadSampleData() {
+  const now = new Date();
+  const key = (d) => d.toISOString().slice(0,16).replace("T"," ");
+  const t0 = new Date(now.getTime() - 2*24*3600*1000);
+  const t1 = new Date(now.getTime() - 1*24*3600*1000);
+  const t2 = now;
+  const mk = (id, name, ref, sku, price, year, brand, inStock) => ({
+    id, name, price: "$"+price.toLocaleString("en-US"), url: "https://linksofny.com/products/sample",
+    categories: brand, inStock, referenceNumber: ref, productCode: sku,
+    stockStatus: inStock ? "In Stock" : "Sold / Out of Stock", brand, year: String(year),
+    box:"Yes", papers:"Yes", description: name + " — sample preview data."
+  });
+  const sample = {};
+  sample[key(t0)] = {
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
+    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",15900,2023,"Rolex",true),
+    3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",true),
+  };
+  sample[key(t1)] = {
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
+    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",16500,2023,"Rolex",true),
+    4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5400,2020,"Cartier",true),
+  };
+  sample[key(t2)] = {
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
+    3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",false),
+    4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5100,2020,"Cartier",true),
+    5: mk(5,"Breitling Navitimer B01","AB0121211C1A1","W4005",8900,2024,"Breitling",true),
+  };
+  setHistory(sample);
+}
+
+function setHistory(data) {
+  history = data || {};
+  snapKeys = Object.keys(history).sort();
+  if (snapKeys.length === 0) {
+    document.getElementById("loadStatus").textContent = "That history.json has no snapshots yet.";
+    return;
+  }
+  latestSnap = history[snapKeys[snapKeys.length - 1]];
+  document.getElementById("loadPanel").style.display = "none";
+  document.getElementById("app").classList.add("active");
+  document.getElementById("headerSub").textContent =
+    `${Object.keys(latestSnap).length} watches · ${snapKeys.length} snapshot${snapKeys.length===1?"":"s"} · latest: ${snapKeys[snapKeys.length-1]} ET`;
+
+  populateFilterOptions();
+  populateSnapshotSelects();
+  renderInventory();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function parsePrice(str) {
+  if (!str) return NaN;
+  const n = parseFloat(String(str).replace(/[^0-9.]/g, ""));
+  return isNaN(n) ? NaN : n;
+}
+function fmtMoney(n) {
+  if (isNaN(n)) return "N/A";
+  return "$" + n.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+function escapeHtml(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function populateFilterOptions() {
+  const brands = new Set(), years = new Set();
+  Object.values(latestSnap).forEach(p => {
+    if (p.brand) brands.add(p.brand);
+    if (p.year) years.add(p.year);
+  });
+  fillSelect("invBrand", [...brands].sort());
+  fillSelect("prBrand", [...brands].sort());
+  fillSelect("invYear", [...years].sort().reverse());
+}
+function fillSelect(id, values) {
+  const sel = document.getElementById(id);
+  const current = sel.value;
+  [...sel.querySelectorAll("option:not(:first-child)")].forEach(o => o.remove());
+  values.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v; opt.textContent = v;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+function populateSnapshotSelects() {
+  [["chFrom","chTo"],["prFrom","prTo"]].forEach(([fromId,toId]) => {
+    [fromId,toId].forEach(id => {
+      const sel = document.getElementById(id);
+      sel.innerHTML = "";
+      snapKeys.forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k; opt.textContent = k + " ET";
+        sel.appendChild(opt);
+      });
+    });
+    document.getElementById(fromId).value = snapKeys[Math.max(0, snapKeys.length-2)];
+    document.getElementById(toId).value = snapKeys[snapKeys.length-1];
+  });
+
+  const quickDefs = [
+    ["Last 2 snapshots", () => [snapKeys[Math.max(0,snapKeys.length-2)], snapKeys[snapKeys.length-1]]],
+    ["Since midnight", () => [closestKeyBefore(startOfToday()), snapKeys[snapKeys.length-1]]],
+    ["Last 2 hrs", () => [closestKeyBefore(hoursAgo(2)), snapKeys[snapKeys.length-1]]],
+    ["Last 24 hrs", () => [closestKeyBefore(hoursAgo(24)), snapKeys[snapKeys.length-1]]],
+    ["Last 7 days", () => [closestKeyBefore(hoursAgo(24*7)), snapKeys[snapKeys.length-1]]],
+    ["All time", () => [snapKeys[0], snapKeys[snapKeys.length-1]]],
+  ];
+  ["chQuick","prQuick"].forEach((barId, idx) => {
+    const bar = document.getElementById(barId);
+    bar.innerHTML = "";
+    quickDefs.forEach(([label, fn]) => {
+      const btn = document.createElement("button");
+      btn.textContent = label;
+      btn.onclick = () => {
+        const [from,to] = fn();
+        const prefix = barId === "chQuick" ? "ch" : "pr";
+        document.getElementById(prefix+"From").value = from;
+        document.getElementById(prefix+"To").value = to;
+        if (prefix === "ch") runChangesReport(); else runPriceReport();
+      };
+      bar.appendChild(btn);
+    });
+  });
+}
+
+function keyToDate(key) {
+  // "YYYY-MM-DD HH:MM" -> Date (treated as ET wall-clock, compared loosely)
+  return new Date(key.replace(" ", "T") + ":00");
+}
+function startOfToday() {
+  const latest = keyToDate(snapKeys[snapKeys.length-1]);
+  return new Date(latest.getFullYear(), latest.getMonth(), latest.getDate());
+}
+function hoursAgo(h) {
+  const latest = keyToDate(snapKeys[snapKeys.length-1]);
+  return new Date(latest.getTime() - h*3600*1000);
+}
+function closestKeyBefore(targetDate) {
+  let best = snapKeys[0];
+  for (const k of snapKeys) {
+    if (keyToDate(k) <= targetDate) best = k; else break;
+  }
+  return best;
+}
+
+// ── Inventory tab ────────────────────────────────────────────────────────
+
+function clearInvFilters() {
+  document.getElementById("invSearch").value = "";
+  document.getElementById("invBrand").value = "";
+  document.getElementById("invPrice").value = "";
+  document.getElementById("invYear").value = "";
+  document.getElementById("invStock").value = "";
+  renderInventory();
+}
+["invSearch","invBrand","invPrice","invYear","invStock"].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener("input", renderInventory);
+  el.addEventListener("change", renderInventory);
+});
+
+function getFilteredInventory() {
+  const q = document.getElementById("invSearch").value.trim().toLowerCase();
+  const brand = document.getElementById("invBrand").value;
+  const priceRange = document.getElementById("invPrice").value;
+  const year = document.getElementById("invYear").value;
+  const stock = document.getElementById("invStock").value;
+
+  let rows = Object.values(latestSnap);
+  if (q) rows = rows.filter(p =>
+    (p.name||"").toLowerCase().includes(q) ||
+    (p.referenceNumber||"").toLowerCase().includes(q) ||
+    (p.productCode||"").toLowerCase().includes(q));
+  if (brand) rows = rows.filter(p => p.brand === brand);
+  if (year) rows = rows.filter(p => p.year === year);
+  if (stock) rows = rows.filter(p => stock === "in" ? p.inStock : !p.inStock);
+  if (priceRange) {
+    const [lo,hi] = priceRange.split("-").map(Number);
+    rows = rows.filter(p => { const n = parsePrice(p.price); return !isNaN(n) && n>=lo && n<hi; });
+  }
+  return rows;
+}
+
+function renderInventory() {
+  const rows = getFilteredInventory();
+  document.getElementById("invCount").textContent = `${rows.length} watch${rows.length===1?"":"es"}`;
+  const body = document.getElementById("invBody");
+  if (rows.length === 0) {
+    body.innerHTML = `<tr><td class="empty" colspan="8">No watches match these filters.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(p => `
+    <tr>
+      <td class="watch-name"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a></td>
+      <td>${escapeHtml(p.referenceNumber)||"—"}</td>
+      <td>${escapeHtml(p.productCode)||"—"}</td>
+      <td><span class="pill ${p.inStock?"in":"out"}">${escapeHtml(p.stockStatus)}</span></td>
+      <td>${escapeHtml(p.price)}</td>
+      <td>${escapeHtml(p.year)||"—"}</td>
+      <td>${escapeHtml(p.brand)||"—"}</td>
+      <td class="desc-cell">${escapeHtml(p.description)}</td>
+    </tr>`).join("");
+}
+
+// ── Changes / Sold tab ───────────────────────────────────────────────────
+
+function runChangesReport() {
+  const fromKey = document.getElementById("chFrom").value;
+  const toKey = document.getElementById("chTo").value;
+  const fromSnap = history[fromKey] || {};
+  const toSnap = history[toKey] || {};
+
+  const newItems = [], soldItems = [];
+  Object.entries(toSnap).forEach(([id,p]) => {
+    if (!p.inStock) return;
+    const before = fromSnap[id];
+    if (!before || !before.inStock) newItems.push(p);
+  });
+  Object.entries(fromSnap).forEach(([id,p]) => {
+    if (!p.inStock) return;
+    const after = toSnap[id];
+    if (!after || !after.inStock) soldItems.push(p);
+  });
+
+  changesResult = { newItems, soldItems };
+
+  document.getElementById("chNewCount").textContent = newItems.length;
+  document.getElementById("chSoldCount").textContent = soldItems.length;
+  document.getElementById("chInStockNow").textContent = Object.values(toSnap).filter(p=>p.inStock).length;
+  document.getElementById("chSnapCount").textContent = snapKeys.length;
+
+  document.getElementById("chNewBody").innerHTML = newItems.length
+    ? newItems.map(rowChangeHtml).join("")
+    : `<tr><td class="empty" colspan="5">No new arrivals / restocks in this range.</td></tr>`;
+  document.getElementById("chSoldBody").innerHTML = soldItems.length
+    ? soldItems.map(rowChangeHtml).join("")
+    : `<tr><td class="empty" colspan="5">Nothing sold / removed in this range.</td></tr>`;
+}
+function rowChangeHtml(p) {
+  return `<tr>
+    <td class="watch-name"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a></td>
+    <td>${escapeHtml(p.referenceNumber)||"—"}</td>
+    <td>${escapeHtml(p.productCode)||"—"}</td>
+    <td>${escapeHtml(p.price)}</td>
+    <td>${escapeHtml(p.brand)||"—"}</td>
+  </tr>`;
+}
+
+// ── Price Changes tab ────────────────────────────────────────────────────
+
+function runPriceReport() {
+  const fromKey = document.getElementById("prFrom").value;
+  const toKey = document.getElementById("prTo").value;
+  const fromSnap = history[fromKey] || {};
+  const toSnap = history[toKey] || {};
+
+  const compared = [];
+  let numCompared = 0;
+  Object.entries(toSnap).forEach(([id,p]) => {
+    const before = fromSnap[id];
+    if (!before) return;
+    numCompared++;
+    const oldP = parsePrice(before.price), newP = parsePrice(p.price);
+    if (isNaN(oldP) || isNaN(newP) || oldP === newP) return;
+    compared.push({
+      name: p.name, url: p.url, referenceNumber: p.referenceNumber, productCode: p.productCode,
+      brand: p.brand, oldPrice: oldP, newPrice: newP,
+      changeAbs: newP - oldP, changePct: ((newP - oldP) / oldP) * 100,
+    });
+  });
+
+  pricesResult = compared;
+
+  const inc = compared.filter(c => c.changeAbs > 0);
+  const dec = compared.filter(c => c.changeAbs < 0);
+  const avgPct = compared.length ? (compared.reduce((s,c)=>s+c.changePct,0)/compared.length) : 0;
+
+  document.getElementById("prIncCount").textContent = inc.length;
+  document.getElementById("prDecCount").textContent = dec.length;
+  document.getElementById("prAvgChange").textContent = compared.length ? (avgPct>=0?"+":"") + avgPct.toFixed(1) + "%" : "—";
+  document.getElementById("prCompared").textContent = numCompared;
+
+  renderPriceTable();
+}
+
+["prDirection","prBrand"].forEach(id => document.getElementById(id).addEventListener("change", renderPriceTable));
+
+function renderPriceTable() {
+  const dir = document.getElementById("prDirection").value;
+  const brand = document.getElementById("prBrand").value;
+  let rows = pricesResult;
+  if (dir === "up") rows = rows.filter(c => c.changeAbs > 0);
+  if (dir === "down") rows = rows.filter(c => c.changeAbs < 0);
+  if (brand) rows = rows.filter(c => c.brand === brand);
+
+  const body = document.getElementById("prBody");
+  if (rows.length === 0) {
+    body.innerHTML = `<tr><td class="empty" colspan="8">No price changes match these filters. Try Run Report first.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(c => `
+    <tr>
+      <td class="watch-name"><a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a></td>
+      <td>${escapeHtml(c.referenceNumber)||"—"}</td>
+      <td>${escapeHtml(c.productCode)||"—"}</td>
+      <td>${fmtMoney(c.oldPrice)}</td>
+      <td>${fmtMoney(c.newPrice)}</td>
+      <td class="${c.changeAbs>0?"up":"down"}">${c.changeAbs>0?"+":""}${fmtMoney(c.changeAbs)}</td>
+      <td class="${c.changeAbs>0?"up":"down"}">${c.changeAbs>0?"+":""}${c.changePct.toFixed(1)}%</td>
+      <td>${escapeHtml(c.brand)||"—"}</td>
+    </tr>`).join("");
+}
+
+// ── Export ───────────────────────────────────────────────────────────────
+
+function exportTable(which) {
+  let data = [], filename = "";
+  if (which === "inventory") {
+    data = getFilteredInventory().map(p => ({
+      Watch: p.name, "Reference Number": p.referenceNumber, "Dealer SKU": p.productCode,
+      "Stock Status": p.stockStatus, Price: p.price, Year: p.year, Brand: p.brand,
+      Description: p.description, URL: p.url,
+    }));
+    filename = "links-of-ny-inventory.xlsx";
+  } else if (which === "changes") {
+    const tag = (rows,label) => rows.map(p => ({
+      Type: label, Watch: p.name, "Reference Number": p.referenceNumber,
+      "Dealer SKU": p.productCode, Price: p.price, Brand: p.brand, URL: p.url,
+    }));
+    data = [...tag(changesResult.newItems,"New / Back In Stock"), ...tag(changesResult.soldItems,"Sold / Removed")];
+    filename = "links-of-ny-changes.xlsx";
+  } else if (which === "prices") {
+    data = pricesResult.map(c => ({
+      Watch: c.name, "Reference Number": c.referenceNumber, "Dealer SKU": c.productCode,
+      "Old Price": c.oldPrice, "New Price": c.newPrice, "Change ($)": c.changeAbs,
+      "Change (%)": c.changePct.toFixed(1), Brand: c.brand, URL: c.url,
+    }));
+    filename = "links-of-ny-price-changes.xlsx";
+  }
+  if (data.length === 0) { alert("Nothing to export yet — adjust filters or run a report first."); return; }
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  XLSX.writeFile(wb, filename);
+}
+
+init();
+</script>
+</body>
+</html>
