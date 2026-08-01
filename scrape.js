@@ -139,6 +139,7 @@ function buildProduct(p) {
     name:            stripHtml(p.title),
     price:           formatPrice(variant.price),
     url:             `${SITE_URL}/products/${p.handle}`,
+    image:           (p.images && p.images[0] && p.images[0].src) || (p.image && p.image.src) || "",
     categories:      attrs["Brand"] || p.product_type || "",
     inStock:         !!variant.available,
     referenceNumber: attrs["Reference Number"] || "",
