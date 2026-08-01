@@ -27,6 +27,8 @@
   .btn.secondary:hover{background:#f0f1f5;}
   .btn.gold{background:var(--gold);color:#241b04;}
   .btn.gold:hover{background:var(--gold-d);}
+  .btn.pale{background:#eef0f6;color:#9aa1b5;border:1px solid var(--border);cursor:pointer;}
+  .btn.pale:hover{background:#e6e8f0;}
   main{max-width:1360px;margin:0 auto;padding:20px 24px 60px;display:none;}
   main.active{display:block;}
   .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);}
@@ -50,6 +52,14 @@
   .rangebar .quick button:hover{background:#e2e5ee;}
   table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:13px;}
   thead th{background:#f7f8fb;text-align:left;padding:9px 10px;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+  th.sortable{cursor:pointer;user-select:none;}
+  th.sortable:hover{color:var(--navy);}
+  .sort-indicator{display:inline-block;margin-left:3px;font-size:9px;opacity:.25;}
+  .filter-row th{background:#fbfbfd;padding:6px 8px;border-bottom:1px solid var(--border);}
+  .filter-row input[type=text],.filter-row select{width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:#fff;color:var(--text);text-transform:none;font-weight:400;letter-spacing:0;}
+  .filter-row .clear-all-cell{text-align:right;white-space:nowrap;}
+  .filter-row .clear-link{background:none;border:none;color:var(--muted);font-size:11.5px;cursor:pointer;text-decoration:underline;padding:0;}
+  .filter-row .clear-link:hover{color:var(--navy);}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
   .buy-price-cell{text-align:center;}
   tbody tr:last-child td{border-bottom:none;}
@@ -123,19 +133,49 @@
       </select>
       <button class="btn secondary" onclick="clearInvFilters()">✕ Clear All</button>
       <div class="spacer"></div>
+      <span class="count-line" id="invCount" style="margin:0 4px;">—</span>
       <button class="btn secondary" id="invClearSelection" onclick="clearSelection()" style="display:none;">✕ Clear Selection</button>
-      <button class="btn secondary" onclick="exportFacebook()">📘 Export Selected to Facebook (.xlsx)</button>
+      <button class="btn pale" id="fbExportBtn" onclick="exportFacebook()">📘 Export Selected to Facebook (.xlsx)</button>
       <button class="btn gold" id="invExportBtn" onclick="exportTable('inventory')">⬇ Export to Excel</button>
     </div>
-    <div class="count-line" id="invCount">—</div>
     <div class="table-wrap">
       <table>
-        <thead><tr>
+        <thead>
+        <tr>
           <th style="width:32px;"><input type="checkbox" id="invSelectAll" onchange="toggleSelectAll(this.checked)"></th>
           <th>Image</th>
-          <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Stock Status</th>
-          <th>Price</th><th class="buy-price-cell">WPB Watch Co Buy Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
-        </tr></thead>
+          <th class="sortable" onclick="setSort('name')">Watch<span class="sort-indicator" data-field="name">▲</span></th>
+          <th class="sortable" onclick="setSort('referenceNumber')">Reference #<span class="sort-indicator" data-field="referenceNumber">▲</span></th>
+          <th class="sortable" onclick="setSort('productCode')">Dealer SKU<span class="sort-indicator" data-field="productCode">▲</span></th>
+          <th class="sortable" onclick="setSort('stockStatus')">Stock Status<span class="sort-indicator" data-field="stockStatus">▲</span></th>
+          <th class="sortable" onclick="setSort('price')">Price<span class="sort-indicator" data-field="price">▲</span></th>
+          <th class="sortable buy-price-cell" onclick="setSort('wpbBuyPrice')">WPB Watch Co Buy Price<span class="sort-indicator" data-field="wpbBuyPrice">▲</span></th>
+          <th class="sortable" onclick="setSort('year')">Year<span class="sort-indicator" data-field="year">▲</span></th>
+          <th class="sortable" onclick="setSort('brand')">Brand<span class="sort-indicator" data-field="brand">▲</span></th>
+          <th>Description</th>
+          <th>Link</th>
+        </tr>
+        <tr class="filter-row">
+          <th></th>
+          <th></th>
+          <th><input type="text" id="colFilterName" placeholder="Filter…"></th>
+          <th><input type="text" id="colFilterRef" placeholder="Filter…"></th>
+          <th><input type="text" id="colFilterSku" placeholder="Filter…"></th>
+          <th>
+            <select id="colFilterStock">
+              <option value="">All</option>
+              <option value="in">In Stock</option>
+              <option value="out">Sold / Out of Stock</option>
+            </select>
+          </th>
+          <th><input type="text" id="colFilterPrice" placeholder="Filter…"></th>
+          <th></th>
+          <th><input type="text" id="colFilterYear" placeholder="Filter…"></th>
+          <th><select id="colFilterBrand"><option value="">All</option></select></th>
+          <th><input type="text" id="colFilterDesc" placeholder="Filter…"></th>
+          <th class="clear-all-cell"><button class="clear-link" onclick="clearInvFilters()">✕ Clear All</button></th>
+        </tr>
+        </thead>
         <tbody id="invBody"></tbody>
       </table>
     </div>
@@ -331,6 +371,7 @@ function populateFilterOptions() {
   });
   fillSelect("invBrand", [...brands].sort());
   fillSelect("prBrand", [...brands].sort());
+  fillSelect("colFilterBrand", [...brands].sort());
   fillSelect("invYear", [...years].sort().reverse());
 }
 function fillSelect(id, values) {
@@ -416,15 +457,23 @@ function wpbBuyPrice(p) {
   return fmtMoney(n * (1 - WPB_BUY_DISCOUNT));
 }
 
+// Two layers of filtering, same as WPB: a top toolbar for coarse/global
+// filters (search, brand, price range, exact year, stock), plus a
+// per-column filter row in the table header for finer, spreadsheet-style
+// narrowing. Both layers combine (AND). Column sort is independent of both.
+const COL_FILTER_IDS = ["colFilterName","colFilterRef","colFilterSku","colFilterStock","colFilterPrice","colFilterYear","colFilterBrand","colFilterDesc"];
+
 function clearInvFilters() {
   document.getElementById("invSearch").value = "";
   document.getElementById("invBrand").value = "";
   document.getElementById("invPrice").value = "";
   document.getElementById("invYear").value = "";
   document.getElementById("invStock").value = "";
+  COL_FILTER_IDS.forEach(id => { document.getElementById(id).value = ""; });
+  sortState = { field: null, dir: 1 };
   renderInventory();
 }
-["invSearch","invBrand","invPrice","invYear","invStock"].forEach(id => {
+["invSearch","invBrand","invPrice","invYear","invStock", ...COL_FILTER_IDS].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener("input", renderInventory);
   el.addEventListener("change", renderInventory);
@@ -436,6 +485,15 @@ function getFilteredInventory() {
   const priceRange = document.getElementById("invPrice").value;
   const year = document.getElementById("invYear").value;
   const stock = document.getElementById("invStock").value;
+
+  const colName  = document.getElementById("colFilterName").value.trim().toLowerCase();
+  const colRef   = document.getElementById("colFilterRef").value.trim().toLowerCase();
+  const colSku   = document.getElementById("colFilterSku").value.trim().toLowerCase();
+  const colStock = document.getElementById("colFilterStock").value;
+  const colPrice = document.getElementById("colFilterPrice").value.trim().toLowerCase().replace(/[$,]/g,"");
+  const colYear  = document.getElementById("colFilterYear").value.trim().toLowerCase();
+  const colBrand = document.getElementById("colFilterBrand").value;
+  const colDesc  = document.getElementById("colFilterDesc").value.trim().toLowerCase();
 
   let rows = Object.values(latestSnap);
   if (q) rows = rows.filter(p =>
@@ -449,7 +507,51 @@ function getFilteredInventory() {
     const [lo,hi] = priceRange.split("-").map(Number);
     rows = rows.filter(p => { const n = parsePrice(p.price); return !isNaN(n) && n>=lo && n<hi; });
   }
+
+  if (colName)  rows = rows.filter(p => (p.name||"").toLowerCase().includes(colName));
+  if (colRef)   rows = rows.filter(p => (p.referenceNumber||"").toLowerCase().includes(colRef));
+  if (colSku)   rows = rows.filter(p => (p.productCode||"").toLowerCase().includes(colSku));
+  if (colStock) rows = rows.filter(p => colStock === "in" ? p.inStock : !p.inStock);
+  if (colPrice) rows = rows.filter(p => (p.price||"").toLowerCase().replace(/[$,]/g,"").includes(colPrice));
+  if (colYear)  rows = rows.filter(p => (p.year||"").toLowerCase().includes(colYear));
+  if (colBrand) rows = rows.filter(p => p.brand === colBrand);
+  if (colDesc)  rows = rows.filter(p => (p.description||"").toLowerCase().includes(colDesc));
+
+  if (sortState.field) {
+    rows = [...rows].sort((a,b) => compareForSort(a,b,sortState.field) * sortState.dir);
+  }
+
   return rows;
+}
+
+// ── Column sorting ──────────────────────────────────────────────────────
+let sortState = { field: null, dir: 1 }; // dir: 1 = ascending, -1 = descending
+
+function setSort(field) {
+  if (sortState.field === field) sortState.dir *= -1;
+  else sortState = { field, dir: 1 };
+  renderInventory();
+}
+
+function compareForSort(a, b, field) {
+  if (field === "price") return parsePrice(a.price) - parsePrice(b.price);
+  if (field === "wpbBuyPrice") return parsePrice(a.price)*(1-WPB_BUY_DISCOUNT) - parsePrice(b.price)*(1-WPB_BUY_DISCOUNT);
+  if (field === "year") return (parseInt(a.year,10)||0) - (parseInt(b.year,10)||0);
+  const av = String(a[field] ?? "").toLowerCase();
+  const bv = String(b[field] ?? "").toLowerCase();
+  return av.localeCompare(bv);
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll(".sort-indicator").forEach(el => {
+    if (el.dataset.field === sortState.field) {
+      el.textContent = sortState.dir === 1 ? "▲" : "▼";
+      el.style.opacity = "1";
+    } else {
+      el.textContent = "▲";
+      el.style.opacity = "0.25";
+    }
+  });
 }
 
 // ── Row selection (for "export selected" workflow) ─────────────────────
@@ -475,6 +577,10 @@ function updateSelectionUI() {
   const rows = getFilteredInventory();
   const allSelected = rows.length > 0 && rows.every(p => selectedIds.has(String(p.id)));
   document.getElementById("invSelectAll").checked = allSelected;
+
+  const fbBtn = document.getElementById("fbExportBtn");
+  fbBtn.className = n > 0 ? "btn secondary" : "btn pale";
+  fbBtn.textContent = n > 0 ? `📘 Export Selected to Facebook (${n})` : "📘 Export Selected to Facebook (.xlsx)";
 }
 
 function renderInventory() {
@@ -504,6 +610,7 @@ function renderInventory() {
       <td><a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View ↗</a></td>
     </tr>`).join("");
   updateSelectionUI();
+  updateSortIndicators();
 }
 
 // ── Changes / Sold tab ───────────────────────────────────────────────────
