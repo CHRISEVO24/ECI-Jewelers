@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 /**
- * Links of NY — Inventory Scraper
+ * ECI Jewelers — Inventory Scraper
  *
- * Links of NY runs on Shopify (not WooCommerce/Elementor like WPB), which
- * exposes a public JSON API at /products.json. All product attributes
- * (Brand, Reference Number, Dial, Bezel, Bracelet, Condition, Box, Papers,
- * Serial Number, Warranty Card/Date, Link Count, etc.) already live inside
- * each product's body_html as one or more HTML <table> blocks — no
- * per-product page scraping or attribute cache is needed. One paginated
- * API call gets everything in a single pass.
+ * ECI Jewelers runs on Shopify (same platform as the previous Links of NY
+ * target), which exposes a public JSON API at /products.json. Every
+ * product's spec info (Condition, Reference Number, Model, Movement,
+ * Bezel, Dial, Bracelet, Papers, Year, etc.) lives inside body_html —
+ * but unlike Links of NY (which used clean HTML <table> markup), ECI's
+ * listings use "<strong>Label:</strong> Value" or "<strong>Label</strong> -
+ * Value" pairs sitting loose inside <div>/<li> tags, and the exact
+ * separator (":" vs "-") and wrapper element are inconsistent from
+ * listing to listing. The parser below handles both table markup (kept
+ * for robustness/portability) and this label/value style, including
+ * values nested inside inline tags like <span>.
  *
  * Usage:  node scrape.js
  */
@@ -19,14 +23,14 @@ const path  = require("path");
 
 const HISTORY_FILE = path.join(__dirname, "history.json");
 const LASTRUN_FILE = path.join(__dirname, "last-run.json");
-const SITE_URL     = "https://linksofny.com";
+const SITE_URL     = "https://ecijewelers.com";
 const PAGE_SIZE    = 250;
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { "User-Agent": "LinksOfNYTracker/1.0" } }, (res) => {
+    const req = https.get(url, { headers: { "User-Agent": "ECIJewelersTracker/1.0" } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJson(res.headers.location).then(resolve).catch(reject);
       }
@@ -69,11 +73,9 @@ function stripHtml(html = "") {
   return decodeHtmlEntities(html.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
-// Each product's body_html contains one or more spec tables shaped like:
-//   <table><thead><tr><th>Attribute</th><th>Detail</th></tr></thead>
-//   <tbody><tr><td>Brand</td><td>Rolex</td></tr> ... </tbody></table>
-// Some listings have two tables (e.g. "Specifications" + "Scope of
-// Delivery"); we flatten every table's rows into one attrs object.
+// Table-based spec markup — not used by ECI's current listings, but kept
+// so the scraper keeps working if a listing (or future site) uses tables.
+//   <table><tr><td>Label</td><td>Value</td></tr></table>
 function parseSpecTables(html) {
   const attrs = {};
   const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/gi;
@@ -90,26 +92,90 @@ function parseSpecTables(html) {
   return attrs;
 }
 
-// Full description = the <p> paragraphs in body_html once the spec
-// table(s) are stripped out.
+// ECI's spec markup: "<strong>Label:</strong> Value" or
+// "<strong>Label</strong> - Value", loose inside <div>/<li>/plain text.
+// The value may be wrapped in inline tags (e.g. <span style="...">), so we
+// grab everything up to the next block-level boundary and strip tags from
+// that chunk rather than stopping at the first "<".
+function parseSpecLabels(html) {
+  const attrs = {};
+  const strongRegex = /<strong[^>]*>([\s\S]*?)<\/strong>/gi;
+  let m;
+  while ((m = strongRegex.exec(html)) !== null) {
+    const label = stripHtml(m[1]).replace(/:\s*$/, "").trim();
+    if (!label) continue; // e.g. a bare "<strong>Details</strong>" section header
+    const afterIdx = m.index + m[0].length;
+    const rest = html.slice(afterIdx, afterIdx + 400);
+    const boundary = rest.search(/<\/div>|<\/li>|<br\s*\/?>|<\/p>|<strong/i);
+    const chunk = boundary === -1 ? rest : rest.slice(0, boundary);
+    const value = stripHtml(chunk).replace(/^[\s:\-–—]+/, "").trim();
+    if (label && value) attrs[label] = value;
+  }
+
+  // A handful of listings put "Accessories: ..." as plain text without a
+  // <strong> wrapper. Catch that specific, known field name as a targeted
+  // fallback (not a general "any label" scan, to avoid false positives on
+  // ordinary prose sentences that happen to contain a colon).
+  if (!attrs["Accessories"]) {
+    const plainMatch = html.match(/(?:^|>)\s*Accessories\s*:\s*([^<]+)/i);
+    if (plainMatch) {
+      const value = stripHtml(plainMatch[1]).trim();
+      if (value) attrs["Accessories"] = value;
+    }
+  }
+
+  return attrs;
+}
+
+function parseSpecAttributes(html) {
+  // Table-based first, then label/value — later assignments win if a key
+  // appears in both (label/value is more specific to how ECI writes pages).
+  return { ...parseSpecTables(html), ...parseSpecLabels(html) };
+}
+
+// Full description = the prose paragraph(s) in body_html once every
+// spec label/value chunk has been stripped out. ECI wraps paragraphs in
+// <div> rather than <p>, so <p> is tried first (covers table-style sites)
+// and <div> is the fallback.
 function parseDescription(html) {
   const withoutTables = html.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, " ");
+  const withoutSpecs = withoutTables.replace(
+    /<strong[^>]*>[\s\S]*?<\/strong>[\s\S]*?(?=<\/div>|<\/li>|<br\s*\/?>|<\/p>|$)/gi, ""
+  );
+
   const paragraphs = [];
   const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
   let pm;
-  while ((pm = pRegex.exec(withoutTables)) !== null) {
+  while ((pm = pRegex.exec(withoutSpecs)) !== null) {
     const text = stripHtml(pm[1]);
     if (text) paragraphs.push(text);
   }
+  if (paragraphs.length === 0) {
+    const divRegex = /<div[^>]*>([\s\S]*?)<\/div>/gi;
+    let dm;
+    while ((dm = divRegex.exec(withoutSpecs)) !== null) {
+      const text = stripHtml(dm[1]);
+      if (text && text.length > 15) paragraphs.push(text); // skip stray <br>/empty divs
+    }
+  }
   if (paragraphs.length) return paragraphs.join("\n\n");
-  return stripHtml(withoutTables).slice(0, 500);
+
+  // Last-resort fallback: any reasonably long <p> anywhere on the page.
+  const allP = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map(m => stripHtml(m[1]))
+    .filter(t => t.length >= 80 && t.length <= 2000);
+  if (allP.length) return allP.join("\n\n");
+
+  return stripHtml(withoutSpecs).slice(0, 500);
 }
 
 // Pull a plausible 4-digit year (1950–2039) out of the most reliable
-// source first: the Warranty Date attribute, then the tag list, then
-// the product title.
+// source first: an explicit "Year" attribute, then "Warranty Date"
+// (Links-of-NY style), then the tag list, then the product title.
 function deriveYear(attrs, tags, title) {
   const yearRe = /(19[5-9]\d|20[0-3]\d)/;
+  const fromYearField = (attrs["Year"] || "").match(yearRe);
+  if (fromYearField) return fromYearField[1];
   const fromWarranty = (attrs["Warranty Date"] || "").match(yearRe);
   if (fromWarranty) return fromWarranty[1];
   const tagYear = (tags || []).find(t => /^\d{4}$/.test(t.trim()) && yearRe.test(t.trim()));
@@ -130,7 +196,7 @@ function formatPrice(priceStr) {
 // display, snapshot comparison, price tracking, and filtering.
 
 function buildProduct(p) {
-  const attrs       = parseSpecTables(p.body_html || "");
+  const attrs       = parseSpecAttributes(p.body_html || "");
   const variant      = (p.variants || [])[0] || {};
   const description  = parseDescription(p.body_html || "");
 
@@ -140,17 +206,25 @@ function buildProduct(p) {
     price:           formatPrice(variant.price),
     url:             `${SITE_URL}/products/${p.handle}`,
     image:           (p.images && p.images[0] && p.images[0].src) || (p.image && p.image.src) || "",
-    categories:      attrs["Brand"] || p.product_type || "",
+    // ECI doesn't label "Brand:" on the page — Shopify's own `vendor`
+    // field carries it instead (e.g. "Rolex", "Audemars Piguet").
+    categories:      attrs["Brand"] || p.vendor || p.product_type || "",
     inStock:         !!variant.available,
-    referenceNumber: attrs["Reference Number"] || "",
+    // Some listings (e.g. certain Audemars Piguet pieces) only label
+    // "Model" with the reference number rather than a separate
+    // "Reference Number" field — fall back to Model when it's missing.
+    referenceNumber: attrs["Reference Number"] || attrs["Model"] || "",
     productCode:     attrs["Dealer SKU"] || variant.sku || "",
     stockStatus:     variant.available ? "In Stock" : "Sold / Out of Stock",
-    brand:           attrs["Brand"] || "",
+    brand:           attrs["Brand"] || p.vendor || "",
     year:            deriveYear(attrs, p.tags, p.title),
-    box:             attrs["Box"] || "",
+    // No dedicated "Box:" field on ECI — inferred from the free-text
+    // "Accessories" line when it mentions a box.
+    box:             attrs["Box"] || (attrs["Accessories"] && /\bbox\b/i.test(attrs["Accessories"]) ? "Yes" : ""),
     papers:          attrs["Papers"] || attrs["Warranty Paper/Card"] || "",
-    // Site's own condition wording (e.g. "Good", "Very Good", "Excellent") —
-    // used by the dashboard's Facebook export to map into FB's fixed enum.
+    // Site's own condition wording (e.g. "Pre-owned 9/10 Very Good",
+    // "Unworn 10/10 Excellent") — used by the dashboard's Facebook export
+    // to map into FB's fixed enum.
     condition:       attrs["Condition"] || "",
     // Full, untruncated description — the dashboard visually clamps this to a
     // couple lines for a clean table (CSS, not data loss), but Excel exports
@@ -162,16 +236,19 @@ function buildProduct(p) {
 // Full product record (richer attrs) — not currently used by the lean
 // dashboard, but kept available if a future export needs more detail.
 function buildFullProduct(p) {
-  const attrs = parseSpecTables(p.body_html || "");
+  const attrs = parseSpecAttributes(p.body_html || "");
   return {
     ...buildProduct(p),
-    model:         attrs["Series"]         || "",
-    caseMat:       attrs["Material"]       || "",
+    model:         attrs["Model"]          || "",
+    caseMat:       attrs["Case Material"]  || "",
     bracelet:      attrs["Bracelet"]       || "",
     dial:          attrs["Dial"]           || "",
-    bezel:         attrs["Bezel"]          || "",
+    bezel:         attrs["Bezel"]          || attrs["Bezel Material"] || "",
+    movement:      attrs["Movement"]       || "",
+    crystal:       attrs["Crystal"]        || "",
+    accessories:   attrs["Accessories"]    || "",
     serialNumber:  attrs["Serial Number"]  || "",
-    size:          attrs["Size"]           || "",
+    size:          attrs["Case Diameter"]  || attrs["Size"] || "",
     warrantyCard:  attrs["Warranty Card"]  || "",
     warrantyDate:  attrs["Warranty Date"]  || "",
     linkCount:     attrs["Link Count"]     || "",
@@ -236,7 +313,7 @@ async function main() {
   const key     = nowKey();
   const history = loadHistory();
 
-  console.log(`\nLinks of NY — Inventory Snapshot`);
+  console.log(`\nECI Jewelers — Inventory Snapshot`);
   console.log(`Timestamp : ${key} ET\n`);
 
   let apiProducts;
@@ -254,7 +331,7 @@ async function main() {
   saveHistory(trimmed);
 
   // Small marker file, committed on every run so there's always a git
-  // change to push — that push is what triggers Netlify's auto-redeploy.
+  // change to push — that push is what makes GitHub Pages republish.
   fs.writeFileSync(LASTRUN_FILE, JSON.stringify({
     lastRun:       key,
     totalProducts: Object.keys(snapshot).length,
@@ -284,7 +361,7 @@ async function main() {
   console.log(`\n→ Open dashboard.html and load history.json to explore.\n`);
 }
 
-module.exports = { parseSpecTables, parseDescription, deriveYear, formatPrice, buildProduct, buildFullProduct, stripHtml };
+module.exports = { parseSpecTables, parseSpecLabels, parseSpecAttributes, parseDescription, deriveYear, formatPrice, buildProduct, buildFullProduct, stripHtml };
 
 // Only run the scrape when this file is executed directly (`node scrape.js`),
 // not when it's require()'d for testing.
