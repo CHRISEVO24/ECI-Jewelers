@@ -133,7 +133,7 @@
           <th style="width:32px;"><input type="checkbox" id="invSelectAll" onchange="toggleSelectAll(this.checked)"></th>
           <th>Image</th>
           <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Stock Status</th>
-          <th>Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
+          <th>Price</th><th>WPB Watch Co Buy Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
         </tr></thead>
         <tbody id="invBody"></tbody>
       </table>
@@ -407,6 +407,14 @@ function closestKeyBefore(targetDate) {
 
 // ── Inventory tab ────────────────────────────────────────────────────────
 
+// What WPB Watch Co would pay to buy the item — listed price minus 5%.
+const WPB_BUY_DISCOUNT = 0.05;
+function wpbBuyPrice(p) {
+  const n = parsePrice(p.price);
+  if (isNaN(n)) return "";
+  return fmtMoney(n * (1 - WPB_BUY_DISCOUNT));
+}
+
 function clearInvFilters() {
   document.getElementById("invSearch").value = "";
   document.getElementById("invBrand").value = "";
@@ -473,7 +481,7 @@ function renderInventory() {
   document.getElementById("invCount").textContent = `${rows.length} watch${rows.length===1?"":"es"}`;
   const body = document.getElementById("invBody");
   if (rows.length === 0) {
-    body.innerHTML = `<tr><td class="empty" colspan="11">No watches match these filters.</td></tr>`;
+    body.innerHTML = `<tr><td class="empty" colspan="12">No watches match these filters.</td></tr>`;
     updateSelectionUI();
     return;
   }
@@ -488,6 +496,7 @@ function renderInventory() {
       <td>${escapeHtml(p.productCode)||"—"}</td>
       <td><span class="pill ${p.inStock?"in":"out"}">${escapeHtml(p.stockStatus)}</span></td>
       <td>${escapeHtml(p.price)}</td>
+      <td>${wpbBuyPrice(p)||"—"}</td>
       <td>${escapeHtml(p.year)||"—"}</td>
       <td>${escapeHtml(p.brand)||"—"}</td>
       <td class="desc-cell" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</td>
@@ -697,7 +706,9 @@ function exportTable(which) {
       : getFilteredInventory();
     data = source.map(p => ({
       Watch: p.name, "Reference Number": p.referenceNumber, "Dealer SKU": p.productCode,
-      "Stock Status": p.stockStatus, Price: p.price, Year: p.year, Brand: p.brand,
+      "Stock Status": p.stockStatus, Price: p.price,
+      "WPB Watch Co Buy Price": wpbBuyPrice(p),
+      Year: p.year, Brand: p.brand,
       // Dealer SKU also appended at the bottom of the description text itself
       // (not just its own column) so it travels with the description if it's
       // ever copied/pasted elsewhere.
