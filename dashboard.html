@@ -83,6 +83,26 @@
   .table-wrap{overflow-x:auto;}
   .count-line{font-size:12.5px;color:var(--muted);margin:2px 2px 10px;}
   #fileInput{display:none;}
+
+  /* WPB-style Changes/Sold: two-column card layout instead of tables */
+  .btn.green{background:#2f6b4f;color:#fff;}
+  .btn.green:hover{background:#28593f;}
+  .snap-count{font-size:11px;color:var(--muted);margin-left:-4px;}
+  .changes-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  @media (max-width:820px){.changes-grid{grid-template-columns:1fr;}}
+  .changes-col-header{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:700;margin:4px 0 10px;color:var(--text);}
+  .count-badge{background:#eef0f6;color:var(--muted);border-radius:10px;padding:2px 9px;font-size:12px;font-weight:600;}
+  .change-cards{display:flex;flex-direction:column;gap:10px;}
+  .change-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;position:relative;}
+  .change-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .change-card-name{font-weight:700;font-size:13.5px;color:var(--text);text-decoration:none;}
+  .change-card-name:hover{color:var(--navy);text-decoration:underline;}
+  .change-card-price{font-weight:700;color:var(--gold-d);font-size:13.5px;white-space:nowrap;}
+  .change-card-sub{font-size:11.5px;color:var(--muted);margin:2px 0 6px;}
+  .change-card-desc{font-size:12px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;}
+  .change-card-footer{display:flex;justify-content:space-between;align-items:center;}
+  .change-card-footer .view-link{background:none;padding:0;color:var(--gold-d);font-weight:600;}
+  .change-card-footer .view-link:hover{background:none;text-decoration:underline;}
   footer{text-align:center;color:var(--muted);font-size:11.5px;padding:20px;}
 </style>
 </head>
@@ -186,11 +206,16 @@
     <div class="rangebar">
       <label style="font-size:12px;color:var(--muted);">From</label>
       <select id="chFrom"></select>
+      <span class="snap-count" id="chFromCount"></span>
       <label style="font-size:12px;color:var(--muted);">To</label>
       <select id="chTo"></select>
+      <span class="snap-count" id="chToCount"></span>
       <div class="quick" id="chQuick"></div>
-      <button class="btn" onclick="runChangesReport()">Run Report</button>
+      <button class="btn gold" onclick="runChangesReport()">Run Report</button>
+      <div class="spacer"></div>
+      <input type="text" id="chSearch" placeholder="🔍 Search name, SKU, reference…" style="min-width:220px;">
     </div>
+    <div style="margin-bottom:14px;"><button class="btn green" onclick="exportTable('changes')">⬇ Export to Excel</button></div>
     <div class="cards">
       <div class="card"><div class="icon">🟢</div><div class="val" id="chNewCount">—</div><div class="lbl">New / Back In Stock</div></div>
       <div class="card"><div class="icon">🔴</div><div class="val" id="chSoldCount">—</div><div class="lbl">Sold / Removed</div></div>
@@ -198,18 +223,16 @@
       <div class="card"><div class="icon">📸</div><div class="val" id="chSnapCount">—</div><div class="lbl">Total Snapshots</div></div>
     </div>
 
-    <h3 style="font-size:14px;margin:20px 0 8px;">🟢 New Arrivals / Back In Stock</h3>
-    <div class="table-wrap">
-      <table><thead><tr><th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Price</th><th>Brand</th></tr></thead>
-      <tbody id="chNewBody"><tr><td class="empty" colspan="5">Pick a range and click Run Report.</td></tr></tbody></table>
+    <div class="changes-grid">
+      <div class="changes-col">
+        <div class="changes-col-header"><span>🟢 New Arrivals / Back In Stock</span><span class="count-badge" id="chNewBadge">0</span></div>
+        <div class="change-cards" id="chNewBody"><div class="empty">Pick a range and click Run Report.</div></div>
+      </div>
+      <div class="changes-col">
+        <div class="changes-col-header"><span>🔴 Sold / Removed</span><span class="count-badge" id="chSoldBadge">0</span></div>
+        <div class="change-cards" id="chSoldBody"><div class="empty">Pick a range and click Run Report.</div></div>
+      </div>
     </div>
-
-    <h3 style="font-size:14px;margin:20px 0 8px;">🔴 Sold / Removed</h3>
-    <div class="table-wrap">
-      <table><thead><tr><th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Price</th><th>Brand</th></tr></thead>
-      <tbody id="chSoldBody"><tr><td class="empty" colspan="5">Pick a range and click Run Report.</td></tr></tbody></table>
-    </div>
-    <div style="margin-top:10px;"><button class="btn gold" onclick="exportTable('changes')">⬇ Export to Excel</button></div>
   </div>
 
   <!-- PRICE CHANGES -->
@@ -621,6 +644,9 @@ function runChangesReport() {
   const fromSnap = history[fromKey] || {};
   const toSnap = history[toKey] || {};
 
+  document.getElementById("chFromCount").textContent = `${Object.keys(fromSnap).length} watches`;
+  document.getElementById("chToCount").textContent = `${Object.keys(toSnap).length} watches`;
+
   const newItems = [], soldItems = [];
   Object.entries(toSnap).forEach(([id,p]) => {
     if (!p.inStock) return;
@@ -640,21 +666,46 @@ function runChangesReport() {
   document.getElementById("chInStockNow").textContent = Object.values(toSnap).filter(p=>p.inStock).length;
   document.getElementById("chSnapCount").textContent = snapKeys.length;
 
-  document.getElementById("chNewBody").innerHTML = newItems.length
-    ? newItems.map(rowChangeHtml).join("")
-    : `<tr><td class="empty" colspan="5">No new arrivals / restocks in this range.</td></tr>`;
-  document.getElementById("chSoldBody").innerHTML = soldItems.length
-    ? soldItems.map(rowChangeHtml).join("")
-    : `<tr><td class="empty" colspan="5">Nothing sold / removed in this range.</td></tr>`;
+  renderChangesCards();
 }
-function rowChangeHtml(p) {
-  return `<tr>
-    <td class="watch-name"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a></td>
-    <td>${escapeHtml(p.referenceNumber)||"—"}</td>
-    <td>${escapeHtml(p.productCode)||"—"}</td>
-    <td>${escapeHtml(p.price)}</td>
-    <td>${escapeHtml(p.brand)||"—"}</td>
-  </tr>`;
+
+document.getElementById("chSearch").addEventListener("input", renderChangesCards);
+
+function renderChangesCards() {
+  const q = document.getElementById("chSearch").value.trim().toLowerCase();
+  const matches = p => !q ||
+    (p.name||"").toLowerCase().includes(q) ||
+    (p.referenceNumber||"").toLowerCase().includes(q) ||
+    (p.productCode||"").toLowerCase().includes(q);
+
+  const newItems = changesResult.newItems.filter(matches);
+  const soldItems = changesResult.soldItems.filter(matches);
+
+  document.getElementById("chNewBadge").textContent = newItems.length;
+  document.getElementById("chSoldBadge").textContent = soldItems.length;
+
+  document.getElementById("chNewBody").innerHTML = newItems.length
+    ? newItems.map(p => changeCardHtml(p,"in")).join("")
+    : `<div class="empty">${q ? "No matches in this range." : "Pick a range and click Run Report."}</div>`;
+  document.getElementById("chSoldBody").innerHTML = soldItems.length
+    ? soldItems.map(p => changeCardHtml(p,"out")).join("")
+    : `<div class="empty">${q ? "No matches in this range." : "Pick a range and click Run Report."}</div>`;
+}
+
+function changeCardHtml(p, state) {
+  const sub = [p.brand, p.referenceNumber ? `Ref. ${p.referenceNumber}` : ""].filter(Boolean).join(" · ");
+  return `<div class="change-card">
+    <div class="change-card-top">
+      <a class="change-card-name" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a>
+      <div class="change-card-price">${escapeHtml(p.price)}</div>
+    </div>
+    <div class="change-card-sub">${escapeHtml(sub)||"—"}</div>
+    <div class="change-card-desc" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</div>
+    <div class="change-card-footer">
+      <span class="pill ${state}">${state==="in" ? "✓ In Stock" : "• Sold / Removed"}</span>
+      <a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View listing →</a>
+    </div>
+  </div>`;
 }
 
 // ── Price Changes tab ────────────────────────────────────────────────────
