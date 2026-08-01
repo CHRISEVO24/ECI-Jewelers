@@ -1,4 +1,4 @@
-name: Links of NY Daily Inventory Scrape
+name: ECI Jewelers Daily Inventory Scrape
 
 on:
   schedule:
@@ -40,8 +40,8 @@ jobs:
 
       - name: Commit updated history.json to repo
         run: |
-          git config --global user.name "Links of NY Scraper Bot"
-          git config --global user.email "scraper@linksofny-tracker.local"
+          git config --global user.name "ECI Jewelers Scraper Bot"
+          git config --global user.email "scraper@eci-jewelers-tracker.local"
           git pull --rebase origin main || true
           git add history.json last-run.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Auto update - $(TZ='America/New_York' date '+%Y-%m-%d %I:%M %p ET')"
