@@ -53,8 +53,11 @@
   tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#fafbfd;}
-  .watch-name a{color:var(--navy);text-decoration:none;font-weight:600;}
-  .watch-name a:hover{text-decoration:underline;}
+  .watch-name{font-weight:600;}
+  .thumb{width:44px;height:44px;border-radius:6px;object-fit:cover;display:block;border:1px solid var(--border);background:#f0f1f5;}
+  .thumb-empty{width:44px;height:44px;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px;}
+  .view-link{display:inline-block;background:#eef0f6;color:var(--navy);text-decoration:none;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;white-space:nowrap;}
+  .view-link:hover{background:#e2e5ee;}
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
   .pill.in{background:var(--green-bg);color:var(--green);}
   .pill.out{background:var(--red-bg);color:var(--red);}
@@ -115,14 +118,17 @@
       </select>
       <button class="btn secondary" onclick="clearInvFilters()">✕ Clear All</button>
       <div class="spacer"></div>
-      <button class="btn gold" onclick="exportTable('inventory')">⬇ Export to Excel</button>
+      <button class="btn secondary" id="invClearSelection" onclick="clearSelection()" style="display:none;">✕ Clear Selection</button>
+      <button class="btn gold" id="invExportBtn" onclick="exportTable('inventory')">⬇ Export to Excel</button>
     </div>
     <div class="count-line" id="invCount">—</div>
     <div class="table-wrap">
       <table>
         <thead><tr>
+          <th style="width:32px;"><input type="checkbox" id="invSelectAll" onchange="toggleSelectAll(this.checked)"></th>
+          <th>Image</th>
           <th>Watch</th><th>Reference #</th><th>Dealer SKU</th><th>Stock Status</th>
-          <th>Price</th><th>Year</th><th>Brand</th><th>Description</th>
+          <th>Price</th><th>Year</th><th>Brand</th><th>Description</th><th>Link</th>
         </tr></thead>
         <tbody id="invBody"></tbody>
       </table>
@@ -236,28 +242,32 @@ function loadSampleData() {
   const t0 = new Date(now.getTime() - 2*24*3600*1000);
   const t1 = new Date(now.getTime() - 1*24*3600*1000);
   const t2 = now;
-  const mk = (id, name, ref, sku, price, year, brand, inStock) => ({
+  const mk = (id, name, ref, sku, price, year, brand, inStock, image) => ({
     id, name, price: "$"+price.toLocaleString("en-US"), url: "https://linksofny.com/products/sample",
+    image: image || "",
     categories: brand, inStock, referenceNumber: ref, productCode: sku,
     stockStatus: inStock ? "In Stock" : "Sold / Out of Stock", brand, year: String(year),
     box:"Yes", papers:"Yes", description: name + " — sample preview data."
   });
+  const IMG1 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126200sio.webp?v=1785509316";
+  const IMG2 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126710BLNR.webp?v=1785509666";
+  const IMG3 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126331mdo.webp?v=1785353450";
   const sample = {};
   sample[key(t0)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
-    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",15900,2023,"Rolex",true),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
+    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",15900,2023,"Rolex",true,IMG2),
     3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",true),
   };
   sample[key(t1)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
-    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",16500,2023,"Rolex",true),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
+    2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",16500,2023,"Rolex",true,IMG2),
     4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5400,2020,"Cartier",true),
   };
   sample[key(t2)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
     3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",false),
     4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5100,2020,"Cartier",true),
-    5: mk(5,"Breitling Navitimer B01","AB0121211C1A1","W4005",8900,2024,"Breitling",true),
+    5: mk(5,"Breitling Navitimer B01","AB0121211C1A1","W4005",8900,2024,"Breitling",true,IMG3),
   };
   setHistory(sample);
 }
@@ -427,17 +437,47 @@ function getFilteredInventory() {
   return rows;
 }
 
+// ── Row selection (for "export selected" workflow) ─────────────────────
+let selectedIds = new Set();
+
+function toggleRowSelected(id, checked) {
+  if (checked) selectedIds.add(String(id)); else selectedIds.delete(String(id));
+  updateSelectionUI();
+}
+function toggleSelectAll(checked) {
+  const rows = getFilteredInventory();
+  rows.forEach(p => checked ? selectedIds.add(String(p.id)) : selectedIds.delete(String(p.id)));
+  renderInventory();
+}
+function clearSelection() {
+  selectedIds.clear();
+  renderInventory();
+}
+function updateSelectionUI() {
+  const n = selectedIds.size;
+  document.getElementById("invExportBtn").textContent = n > 0 ? `⬇ Export Selected (${n})` : "⬇ Export to Excel";
+  document.getElementById("invClearSelection").style.display = n > 0 ? "inline-block" : "none";
+  const rows = getFilteredInventory();
+  const allSelected = rows.length > 0 && rows.every(p => selectedIds.has(String(p.id)));
+  document.getElementById("invSelectAll").checked = allSelected;
+}
+
 function renderInventory() {
   const rows = getFilteredInventory();
   document.getElementById("invCount").textContent = `${rows.length} watch${rows.length===1?"":"es"}`;
   const body = document.getElementById("invBody");
   if (rows.length === 0) {
-    body.innerHTML = `<tr><td class="empty" colspan="8">No watches match these filters.</td></tr>`;
+    body.innerHTML = `<tr><td class="empty" colspan="11">No watches match these filters.</td></tr>`;
+    updateSelectionUI();
     return;
   }
   body.innerHTML = rows.map(p => `
     <tr>
-      <td class="watch-name"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a></td>
+      <td><input type="checkbox" ${selectedIds.has(String(p.id))?"checked":""} onchange="toggleRowSelected('${p.id}', this.checked)"></td>
+      <td>${p.image
+          ? `<a href="${escapeHtml(p.image)}" target="_blank" rel="noopener"><img class="thumb" src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy"></a>`
+          : `<div class="thumb-empty">—</div>`}</td>
+      <td class="watch-name">${escapeHtml(p.name)}</td>
       <td>${escapeHtml(p.referenceNumber)||"—"}</td>
       <td>${escapeHtml(p.productCode)||"—"}</td>
       <td><span class="pill ${p.inStock?"in":"out"}">${escapeHtml(p.stockStatus)}</span></td>
@@ -445,7 +485,9 @@ function renderInventory() {
       <td>${escapeHtml(p.year)||"—"}</td>
       <td>${escapeHtml(p.brand)||"—"}</td>
       <td class="desc-cell">${escapeHtml(p.description)}</td>
+      <td><a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View ↗</a></td>
     </tr>`).join("");
+  updateSelectionUI();
 }
 
 // ── Changes / Sold tab ───────────────────────────────────────────────────
@@ -562,10 +604,15 @@ function renderPriceTable() {
 function exportTable(which) {
   let data = [], filename = "";
   if (which === "inventory") {
-    data = getFilteredInventory().map(p => ({
+    // If the user has checked specific rows, export exactly those (regardless
+    // of current filters). Otherwise export whatever the filters currently show.
+    const source = selectedIds.size > 0
+      ? Object.values(latestSnap).filter(p => selectedIds.has(String(p.id)))
+      : getFilteredInventory();
+    data = source.map(p => ({
       Watch: p.name, "Reference Number": p.referenceNumber, "Dealer SKU": p.productCode,
       "Stock Status": p.stockStatus, Price: p.price, Year: p.year, Brand: p.brand,
-      Description: p.description, URL: p.url,
+      Description: p.description, "Product URL": p.url, "Image URL": p.image || "",
     }));
     filename = "links-of-ny-inventory.xlsx";
   } else if (which === "changes") {
