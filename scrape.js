@@ -149,7 +149,10 @@ function buildProduct(p) {
     year:            deriveYear(attrs, p.tags, p.title),
     box:             attrs["Box"] || "",
     papers:          attrs["Papers"] || attrs["Warranty Paper/Card"] || "",
-    description:     description.slice(0, 120),
+    // Full, untruncated description — the dashboard visually clamps this to a
+    // couple lines for a clean table (CSS, not data loss), but Excel exports
+    // and the underlying history.json always carry the complete text.
+    description:     description,
   };
 }
 
@@ -159,7 +162,6 @@ function buildFullProduct(p) {
   const attrs = parseSpecTables(p.body_html || "");
   return {
     ...buildProduct(p),
-    description:   parseDescription(p.body_html || ""),
     model:         attrs["Series"]         || "",
     caseMat:       attrs["Material"]       || "",
     bracelet:      attrs["Bracelet"]       || "",
