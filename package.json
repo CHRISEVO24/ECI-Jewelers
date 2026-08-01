@@ -1,7 +1,7 @@
 {
-  "name": "links-of-ny-tracker",
+  "name": "eci-jewelers-tracker",
   "version": "1.0.0",
-  "description": "Links of NY inventory tracker — scrape daily, explore in browser",
+  "description": "ECI Jewelers inventory tracker — scrape daily, explore in browser",
   "main": "scrape.js",
   "scripts": {
     "scrape": "node scrape.js"
