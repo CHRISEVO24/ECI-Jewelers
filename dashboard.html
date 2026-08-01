@@ -123,6 +123,7 @@
       <button class="btn secondary" onclick="clearInvFilters()">✕ Clear All</button>
       <div class="spacer"></div>
       <button class="btn secondary" id="invClearSelection" onclick="clearSelection()" style="display:none;">✕ Clear Selection</button>
+      <button class="btn secondary" onclick="exportFacebook()">📘 Export Selected to Facebook (.xlsx)</button>
       <button class="btn gold" id="invExportBtn" onclick="exportTable('inventory')">⬇ Export to Excel</button>
     </div>
     <div class="count-line" id="invCount">—</div>
@@ -246,12 +247,13 @@ function loadSampleData() {
   const t0 = new Date(now.getTime() - 2*24*3600*1000);
   const t1 = new Date(now.getTime() - 1*24*3600*1000);
   const t2 = now;
-  const mk = (id, name, ref, sku, price, year, brand, inStock, image) => ({
+  const mk = (id, name, ref, sku, price, year, brand, inStock, image, condition) => ({
     id, name, price: "$"+price.toLocaleString("en-US"), url: "https://linksofny.com/products/sample",
     image: image || "",
     categories: brand, inStock, referenceNumber: ref, productCode: sku,
     stockStatus: inStock ? "In Stock" : "Sold / Out of Stock", brand, year: String(year),
-    box:"Yes", papers:"Yes", description: name + " — sample preview data."
+    box:"Yes", papers:"Yes", condition: condition || "Very Good",
+    description: name + " — sample preview data. A well-maintained example, sold with full documentation."
   });
   const IMG1 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126200sio.webp?v=1785509316";
   const IMG2 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126710BLNR.webp?v=1785509666";
@@ -601,6 +603,86 @@ function renderPriceTable() {
       <td class="${c.changeAbs>0?"up":"down"}">${c.changeAbs>0?"+":""}${c.changePct.toFixed(1)}%</td>
       <td>${escapeHtml(c.brand)||"—"}</td>
     </tr>`).join("");
+}
+
+// ── Facebook Marketplace export ─────────────────────────────────────────
+// Matches Facebook's own "Bulk Upload Template" exactly (verified against a
+// real template file): sheet has 2 title/instruction rows, a row of field
+// requirements, a header row (TITLE, PRICE, CONDITION, DESCRIPTION,
+// CATEGORY), then data starting row 5. Facebook caps bulk uploads at 50
+// listings per file.
+
+const FB_MAX_LISTINGS = 50;
+const FB_CATEGORY = {
+  men:   "Clothing, Shoes & Accessories//Jewelry & Watches//Watches & Accessories//Watches//Men's Watches",
+  women: "Clothing, Shoes & Accessories//Jewelry & Watches//Watches & Accessories//Watches//Women's Watches",
+  kids:  "Clothing, Shoes & Accessories//Jewelry & Watches//Watches & Accessories//Watches//Kid's Watches",
+};
+
+function fbCategoryFor(p) {
+  const text = `${p.name || ""} ${p.description || ""}`.toLowerCase();
+  if (/\bkid'?s?\b|\bchild(ren)?'?s?\b/.test(text)) return FB_CATEGORY.kids;
+  if (/\blad(y|ies)\b|\bwomen'?s?\b/.test(text)) return FB_CATEGORY.women;
+  return FB_CATEGORY.men; // default — most of the catalog skews men's/unisex
+}
+
+// Facebook only accepts these four exact strings. Map the site's own
+// wording (e.g. "Good", "Very Good", "Excellent") onto them.
+function fbConditionFor(p) {
+  const c = (p.condition || "").toLowerCase().trim();
+  if (!c) return "Used - Good"; // safe default for pre-owned watch inventory
+  if (c.includes("like new") || c.includes("excellent") || c.includes("mint")) return "Used - Like New";
+  if (c.includes("fair") || c.includes("poor")) return "Used - Fair";
+  if (c.includes("new")) return "New"; // only site conditions literally saying "New" (not "like new")
+  return "Used - Good"; // covers "Good", "Very Good", "Fine", anything else
+}
+
+function fbTitleFor(p) {
+  return (p.name || "").slice(0, 150);
+}
+function fbPriceFor(p) {
+  const n = parsePrice(p.price);
+  return isNaN(n) ? "" : Math.round(n);
+}
+function fbDescriptionFor(p) {
+  const base = p.description || "";
+  const sku = p.productCode ? `\n\nDealer SKU: ${p.productCode}` : "";
+  return (base + sku).slice(0, 5000);
+}
+
+// Builds the exact array-of-arrays layout for the template sheet. Split out
+// from exportFacebook() so the mapping logic can be unit tested without
+// needing the XLSX library loaded.
+function buildFacebookSheetRows(products) {
+  const aoa = [
+    ["Facebook Marketplace Bulk Upload Template"],
+    ["You can create up to 50 listings at once. When you are finished, be sure to save or export this as an XLS/XLSX file."],
+    ['REQUIRED | Plain text (up to 150 characters', 'REQUIRED | A whole number in $', 'REQUIRED | Supported values: "New"; "Used - Like New"; "Used - Good"; "Used - Fair"', 'OPTIONAL | Plain text (up to 5000 characters)', 'OPTIONAL | Type of listing'],
+    ["TITLE", "PRICE", "CONDITION", "DESCRIPTION", "CATEGORY"],
+  ];
+  products.forEach(p => {
+    aoa.push([fbTitleFor(p), fbPriceFor(p), fbConditionFor(p), fbDescriptionFor(p), fbCategoryFor(p)]);
+  });
+  return aoa;
+}
+
+function exportFacebook() {
+  const ids = [...selectedIds];
+  if (ids.length === 0) {
+    alert("Select at least one watch (checkbox on the left of each row) to export to Facebook.");
+    return;
+  }
+  if (ids.length > FB_MAX_LISTINGS) {
+    alert(`Facebook Marketplace bulk upload supports up to ${FB_MAX_LISTINGS} listings per file — you have ${ids.length} selected. Please narrow your selection.`);
+    return;
+  }
+  const products = ids.map(id => latestSnap[id]).filter(Boolean);
+  const aoa = buildFacebookSheetRows(products);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch:45},{wch:10},{wch:16},{wch:60},{wch:55}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Bulk Upload Template");
+  XLSX.writeFile(wb, "links-of-ny-facebook-marketplace.xlsx");
 }
 
 // ── Export ───────────────────────────────────────────────────────────────
