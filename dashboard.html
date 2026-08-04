@@ -29,6 +29,8 @@
   .btn.gold:hover{background:var(--gold-d);}
   .btn.pale{background:#eef0f6;color:#9aa1b5;border:1px solid var(--border);cursor:pointer;}
   .btn.pale:hover{background:#e6e8f0;}
+  .btn.teal{background:#0f766e;color:#fff;}
+  .btn.teal:hover{background:#0b5c56;}
   main{max-width:1360px;margin:0 auto;padding:20px 24px 60px;display:none;}
   main.active{display:block;}
   .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);}
@@ -156,6 +158,7 @@
       <span class="count-line" id="invCount" style="margin:0 4px;">—</span>
       <button class="btn secondary" id="invClearSelection" onclick="clearSelection()" style="display:none;">✕ Clear Selection</button>
       <button class="btn pale" id="fbExportBtn" onclick="exportFacebook()">📘 Export Selected to Facebook (.xlsx)</button>
+      <button class="btn teal" id="wpbSetupBtn" onclick="exportTable('wpbsetup')">🏷️ Export to WPB Setup (.xlsx)</button>
       <button class="btn gold" id="invExportBtn" onclick="exportTable('inventory')">⬇ Export to Excel</button>
     </div>
     <div class="table-wrap">
@@ -311,30 +314,35 @@ function loadSampleData() {
   const t0 = new Date(now.getTime() - 2*24*3600*1000);
   const t1 = new Date(now.getTime() - 1*24*3600*1000);
   const t2 = now;
-  const mk = (id, name, ref, sku, price, year, brand, inStock, image, condition) => ({
+  const mk = (id, name, ref, sku, price, year, brand, inStock, image, condition, extra) => ({
     id, name, price: "$"+price.toLocaleString("en-US"), url: "https://ecijewelers.com/products/sample",
     image: image || "",
+    images: image ? [image] : [],
     categories: brand, inStock, referenceNumber: ref, productCode: sku,
     stockStatus: inStock ? "In Stock" : "Sold / Out of Stock", brand, year: String(year),
     box:"Yes", papers:"Yes", condition: condition || "Very Good",
+    model: (extra && extra.model) || "", caseMat: (extra && extra.caseMat) || "",
+    bracelet: (extra && extra.bracelet) || "", dial: (extra && extra.dial) || "",
+    bezel: (extra && extra.bezel) || "", movement: (extra && extra.movement) || "",
     description: name + " — sample preview data. A well-maintained example, sold with full documentation."
   });
   const IMG1 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126200sio.webp?v=1785509316";
   const IMG2 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126710BLNR.webp?v=1785509666";
   const IMG3 = "https://cdn.shopify.com/s/files/1/0697/7359/0581/files/stock_126331mdo.webp?v=1785353450";
+  const DJ_EXTRA = { model:"Datejust", caseMat:"Stainless Steel", bracelet:"Jubilee", dial:"Silver", bezel:"Fluted", movement:"3235" };
   const sample = {};
   sample[key(t0)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1,null,DJ_EXTRA),
     2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",15900,2023,"Rolex",true,IMG2),
     3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",true),
   };
   sample[key(t1)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1,null,DJ_EXTRA),
     2: mk(2,"Rolex Submariner Date 126610LN","126610LN","W4002",16500,2023,"Rolex",true,IMG2),
     4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5400,2020,"Cartier",true),
   };
   sample[key(t2)] = {
-    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1),
+    1: mk(1,"Rolex Datejust 36 Silver 126200","126200","W4001",9975,2022,"Rolex",true,IMG1,null,DJ_EXTRA),
     3: mk(3,"Omega Speedmaster Professional","311.30.42.30.01.005","W4003",6200,2021,"Omega",false),
     4: mk(4,"Cartier Santos Medium","WSSA0018","W4004",5100,2020,"Cartier",true),
     5: mk(5,"Breitling Navitimer B01","AB0121211C1A1","W4005",8900,2024,"Breitling",true,IMG3),
@@ -604,6 +612,10 @@ function updateSelectionUI() {
   const fbBtn = document.getElementById("fbExportBtn");
   fbBtn.className = n > 0 ? "btn secondary" : "btn pale";
   fbBtn.textContent = n > 0 ? `📘 Export Selected to Facebook (${n})` : "📘 Export Selected to Facebook (.xlsx)";
+
+  document.getElementById("wpbSetupBtn").textContent = n > 0
+    ? `🏷️ Export Selected to WPB Setup (${n})`
+    : "🏷️ Export to WPB Setup (.xlsx)";
 }
 
 function renderInventory() {
@@ -889,12 +901,65 @@ function exportTable(which) {
       "Change (%)": c.changePct.toFixed(1), Brand: c.brand, URL: c.url,
     }));
     filename = "eci-jewelers-price-changes.xlsx";
+  } else if (which === "wpbsetup") {
+    // Same "select some, or export everything currently filtered" pattern as
+    // the regular inventory export — matches "select 1 item or all items".
+    const source = selectedIds.size > 0
+      ? Object.values(latestSnap).filter(p => selectedIds.has(String(p.id)))
+      : getFilteredInventory();
+    data = source.map(wpbSetupRow);
+    filename = "eci-jewelers-wpb-setup.xlsx";
   }
   if (data.length === 0) { alert("Nothing to export yet — adjust filters or run a report first."); return; }
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Data");
   XLSX.writeFile(wb, filename);
+}
+
+// ── WPB Watch Co item-setup export ──────────────────────────────────────
+// wpbwatchco.com (WordPress/WooCommerce) lists every watch with this exact
+// spec block: Price, Brand, Reference Number, Product Code, Model, Case,
+// Bracelet, Dial, Bezel, Movement, Year, Box, Papers, Stock Status, plus a
+// description and several photos. This export mirrors those fields 1:1 so
+// the team has everything needed to set an item up on the site, whether
+// they paste it in by hand or run it through a bulk-import plugin.
+//
+// Two prices are deliberately kept separate from a blank "WPB Listing
+// Price" column: the source dealer's asking price, and 95% of that as a
+// reference for what WPB would pay to acquire it (same math as the
+// Current Inventory tab's "WPB Watch Co Buy Price" column). Neither one is
+// WPB's actual resale price — that's a margin decision for a person to
+// make, not something this tool should guess and silently import.
+function wpbSetupRow(p) {
+  const images = (p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
+  const sourcePrice = parsePrice(p.price);
+  return {
+    Title: p.name,
+    "Suggested Category": [p.brand, p.model].filter(Boolean).join(" > "),
+    Brand: p.brand || "",
+    Model: p.model || "",
+    "Reference Number": p.referenceNumber || "",
+    "Source Dealer SKU": p.productCode || "",
+    Case: p.caseMat || "",
+    Bracelet: p.bracelet || "",
+    Dial: p.dial || "",
+    Bezel: p.bezel || "",
+    Movement: p.movement || "",
+    Year: p.year || "",
+    Box: p.box || "",
+    Papers: p.papers || "",
+    "Condition (reference only)": p.condition || "",
+    Description: p.description || "",
+    "Source Asking Price": isNaN(sourcePrice) ? "" : sourcePrice,
+    "Est. WPB Buy Price (95% of source)": isNaN(sourcePrice) ? "" : Math.round(sourcePrice * (1 - WPB_BUY_DISCOUNT)),
+    "WPB Listing Price": "",
+    "Image 1": images[0] || "",
+    "Image 2": images[1] || "",
+    "Image 3": images[2] || "",
+    "Image 4": images[3] || "",
+    "Source Listing URL": p.url || "",
+  };
 }
 
 init();
