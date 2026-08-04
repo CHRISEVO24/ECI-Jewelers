@@ -704,8 +704,21 @@ function renderChangesCards() {
     : `<div class="empty">${q ? "No matches in this range." : "Pick a range and click Run Report."}</div>`;
 }
 
+// ECI's own listing URL is always captured for every item, sold or not — see
+// buildProduct()/buildFullProduct() in scrape.js, which set `url` unconditionally
+// regardless of stock status. The one thing we can't control: ECI itself
+// removes a product's page entirely once it sells (confirmed — a sold item's
+// URL 404s while an in-stock item's URL still loads fine), so the correctly
+// captured link can still go dead on their end. For sold/removed items we add
+// a Wayback Machine fallback alongside the direct link, since it's the only
+// way to possibly still reach a live page after ECI has taken it down.
 function changeCardHtml(p, state) {
-  const sub = [p.brand, p.referenceNumber ? `Ref. ${p.referenceNumber}` : ""].filter(Boolean).join(" · ");
+  const sub = [
+    p.brand,
+    p.referenceNumber ? `Ref. ${p.referenceNumber}` : "",
+    p.productCode ? `SKU ${p.productCode}` : "",
+  ].filter(Boolean).join(" · ");
+  const archiveUrl = `https://web.archive.org/web/2/${encodeURIComponent(p.url)}`;
   return `<div class="change-card">
     <div class="change-card-top">
       <a class="change-card-name" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.name)}</a>
@@ -715,7 +728,10 @@ function changeCardHtml(p, state) {
     <div class="change-card-desc" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</div>
     <div class="change-card-footer">
       <span class="pill ${state}">${state==="in" ? "✓ In Stock" : "• Sold / Removed"}</span>
-      <a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View listing →</a>
+      <span style="display:flex;gap:8px;">
+        <a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View listing →</a>
+        ${state==="out" ? `<a class="view-link" href="${escapeHtml(archiveUrl)}" target="_blank" rel="noopener" title="ECI removes the page once an item sells — this tries the closest archived copy on the Wayback Machine">🕘 Archived Copy</a>` : ""}
+      </span>
     </div>
   </div>`;
 }
@@ -774,7 +790,9 @@ function renderPriceTable() {
   }
   body.innerHTML = rows.map(c => `
     <tr>
-      <td class="watch-name"><a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a></td>
+      <td class="watch-name"><a href="${escapeHtml(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a>
+        <a href="https://web.archive.org/web/2/${encodeURIComponent(c.url)}" target="_blank" rel="noopener"
+           title="If ECI has since removed this listing, this tries the closest archived copy" style="margin-left:4px;text-decoration:none;">🕘</a></td>
       <td>${escapeHtml(c.referenceNumber)||"—"}</td>
       <td>${escapeHtml(c.productCode)||"—"}</td>
       <td>${fmtMoney(c.oldPrice)}</td>
