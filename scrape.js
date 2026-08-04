@@ -192,8 +192,9 @@ function formatPrice(priceStr) {
 }
 
 // ── Build product record ────────────────────────────────────────────────
-// history.json stores LEAN fields only — just what's needed for dashboard
-// display, snapshot comparison, price tracking, and filtering.
+// buildProduct() returns the lean fields the table/dashboard views need.
+// history.json actually stores the richer buildFullProduct() version (see
+// below) so exports like "WPB Setup" have full spec data available too.
 
 function buildProduct(p) {
   const attrs       = parseSpecAttributes(p.body_html || "");
@@ -233,8 +234,10 @@ function buildProduct(p) {
   };
 }
 
-// Full product record (richer attrs) — not currently used by the lean
-// dashboard, but kept available if a future export needs more detail.
+// Full product record (richer attrs) — used for history.json so the
+// dashboard's "Export Selected to WPB Setup" feature has everything WPB's
+// own listing pages require (Model, Case, Bracelet, Dial, Bezel, Movement),
+// not just the lean fields the table view needs.
 function buildFullProduct(p) {
   const attrs = parseSpecAttributes(p.body_html || "");
   return {
@@ -252,6 +255,9 @@ function buildFullProduct(p) {
     warrantyCard:  attrs["Warranty Card"]  || "",
     warrantyDate:  attrs["Warranty Date"]  || "",
     linkCount:     attrs["Link Count"]     || "",
+    // All product images (not just the first) — WPB's own listings show
+    // multiple photos per watch, so the setup export needs the full set.
+    images:        (p.images || []).map(im => im.src).filter(Boolean),
   };
 }
 
@@ -322,7 +328,7 @@ async function main() {
 
   const snapshot = {};
   for (const p of apiProducts) {
-    const rec = buildProduct(p);
+    const rec = buildFullProduct(p);
     snapshot[rec.id] = rec;
   }
 
