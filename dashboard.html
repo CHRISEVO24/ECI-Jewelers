@@ -105,6 +105,22 @@
   .change-card-footer{display:flex;justify-content:space-between;align-items:center;}
   .change-card-footer .view-link{background:none;padding:0;color:var(--gold-d);font-weight:600;}
   .change-card-footer .view-link:hover{background:none;text-decoration:underline;}
+  .change-card-footer .cache-btn{background:none;border:none;padding:0;color:var(--navy);font-weight:600;font-size:11.5px;cursor:pointer;text-decoration:none;font-family:inherit;}
+  .change-card-footer .cache-btn:hover{text-decoration:underline;}
+
+  /* Cached details modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(16,24,43,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto;}
+  .modal-card{background:#fff;border-radius:var(--radius);max-width:720px;width:100%;padding:26px 28px;position:relative;box-shadow:0 12px 40px rgba(16,24,43,.3);}
+  .modal-close{position:absolute;top:14px;right:16px;background:#eef0f6;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;color:var(--muted);}
+  .modal-close:hover{background:#e2e5ee;color:var(--navy);}
+  .modal-gallery{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;}
+  .modal-gallery img{width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+  .modal-badge{display:inline-block;background:#eef0f6;color:var(--muted);font-size:11px;font-weight:600;border-radius:10px;padding:3px 10px;margin-bottom:8px;}
+  .modal-spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 16px;margin:16px 0;}
+  .modal-spec-grid .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);}
+  .modal-spec-grid .v{font-size:13px;font-weight:600;color:var(--text);}
+  .modal-desc{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;background:#fbfbfd;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:6px;}
+  .modal-links{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
   footer{text-align:center;color:var(--muted);font-size:11.5px;padding:20px;}
 </style>
 </head>
@@ -273,6 +289,16 @@
     </div>
   </div>
 </main>
+
+<!-- Cached details modal — reconstructs everything we captured about an item
+     from our own snapshot data. Works even when ECI has removed the live page
+     and Wayback has no archived copy, since none of this depends on either. -->
+<div id="cachedModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeCachedModal()">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeCachedModal()">✕</button>
+    <div id="cachedModalBody"></div>
+  </div>
+</div>
 
 <footer>ECI Jewelers Inventory Tracker · data refreshes on each automated snapshot</footer>
 
@@ -659,16 +685,20 @@ function runChangesReport() {
   document.getElementById("chFromCount").textContent = `${Object.keys(fromSnap).length} watches`;
   document.getElementById("chToCount").textContent = `${Object.keys(toSnap).length} watches`;
 
+  // Tag each item with which snapshot it was actually captured from — the
+  // cached-details modal needs this so it can be honest about how fresh the
+  // data is (particularly for sold items, where this is the *last* snapshot
+  // that saw the item in stock, not "right now").
   const newItems = [], soldItems = [];
   Object.entries(toSnap).forEach(([id,p]) => {
     if (!p.inStock) return;
     const before = fromSnap[id];
-    if (!before || !before.inStock) newItems.push(p);
+    if (!before || !before.inStock) newItems.push({...p, capturedAt: toKey});
   });
   Object.entries(fromSnap).forEach(([id,p]) => {
     if (!p.inStock) return;
     const after = toSnap[id];
-    if (!after || !after.inStock) soldItems.push(p);
+    if (!after || !after.inStock) soldItems.push({...p, capturedAt: fromKey});
   });
 
   changesResult = { newItems, soldItems };
@@ -728,13 +758,53 @@ function changeCardHtml(p, state) {
     <div class="change-card-desc" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</div>
     <div class="change-card-footer">
       <span class="pill ${state}">${state==="in" ? "✓ In Stock" : "• Sold / Removed"}</span>
-      <span style="display:flex;gap:8px;">
+      <span style="display:flex;gap:10px;align-items:center;">
+        <button class="cache-btn" onclick="showCachedDetails('${p.id}','${state}')">📄 Cached Details</button>
         <a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View listing →</a>
         ${state==="out" ? `<a class="view-link" href="${escapeHtml(archiveUrl)}" target="_blank" rel="noopener" title="ECI removes the page once an item sells — this tries the closest archived copy on the Wayback Machine">🕘 Archived Copy</a>` : ""}
       </span>
     </div>
   </div>`;
 }
+
+// ── Cached details modal ────────────────────────────────────────────────
+// Everything shown here comes from our own captured snapshot data — no
+// dependence on ECI's live site or Wayback Machine being available.
+function showCachedDetails(id, state) {
+  const list = state === "in" ? changesResult.newItems : changesResult.soldItems;
+  const p = list.find(x => String(x.id) === String(id));
+  if (!p) return;
+
+  const images = (p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
+  const spec = [
+    ["Brand", p.brand], ["Model", p.model], ["Reference Number", p.referenceNumber],
+    ["Dealer SKU", p.productCode], ["Case", p.caseMat], ["Bracelet", p.bracelet],
+    ["Dial", p.dial], ["Bezel", p.bezel], ["Movement", p.movement], ["Year", p.year],
+    ["Box", p.box], ["Papers", p.papers], ["Condition", p.condition],
+  ].filter(([,v]) => v);
+
+  const archiveUrl = `https://web.archive.org/web/2/${encodeURIComponent(p.url)}`;
+
+  document.getElementById("cachedModalBody").innerHTML = `
+    <span class="modal-badge">📸 Captured ${escapeHtml(p.capturedAt || "")} ET — from our own snapshot, not a live fetch</span>
+    <h2 style="font-size:17px;margin:4px 0 2px;">${escapeHtml(p.name)}</h2>
+    <div style="font-size:15px;font-weight:700;color:var(--gold-d);">${escapeHtml(p.price)}</div>
+    ${images.length ? `<div class="modal-gallery">${images.map(src => `<img src="${escapeHtml(src)}" alt="">`).join("")}</div>` : `<div style="color:var(--muted);font-size:12px;margin-top:10px;">No images were captured for this item.</div>`}
+    <div class="modal-spec-grid">
+      ${spec.map(([k,v]) => `<div><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`).join("")}
+    </div>
+    ${p.description ? `<div class="k" style="margin-top:4px;">Description</div><div class="modal-desc">${escapeHtml(p.description)}</div>` : ""}
+    <div class="modal-links">
+      <a class="view-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">View live listing →</a>
+      <a class="view-link" href="${escapeHtml(archiveUrl)}" target="_blank" rel="noopener">🕘 Try Archived Copy</a>
+    </div>
+  `;
+  document.getElementById("cachedModal").style.display = "flex";
+}
+function closeCachedModal() {
+  document.getElementById("cachedModal").style.display = "none";
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCachedModal(); });
 
 // ── Price Changes tab ────────────────────────────────────────────────────
 
