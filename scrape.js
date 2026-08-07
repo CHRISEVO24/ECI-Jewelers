@@ -26,6 +26,18 @@ const LASTRUN_FILE = path.join(__dirname, "last-run.json");
 const SITE_URL     = "https://ecijewelers.com";
 const PAGE_SIZE    = 250;
 
+// ECI's Shopify catalog also carries non-watch jewelry pieces under these
+// vendor names — this tracker is watches-only, so anything tagged with one
+// of these vendors is skipped entirely before it ever reaches history.json.
+// Matched case-insensitively against Shopify's `vendor` field.
+const EXCLUDED_VENDORS = new Set(
+  ["ECI Jewelers", "Elegant Creations Inc"].map(v => v.toLowerCase())
+);
+
+function isExcludedVendor(p) {
+  return EXCLUDED_VENDORS.has((p.vendor || "").trim().toLowerCase());
+}
+
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
 function fetchJson(url) {
@@ -327,9 +339,14 @@ async function main() {
   catch (e) { console.error("❌ API failed:", e.message); process.exit(1); }
 
   const snapshot = {};
+  let excludedCount = 0;
   for (const p of apiProducts) {
+    if (isExcludedVendor(p)) { excludedCount++; continue; }
     const rec = buildFullProduct(p);
     snapshot[rec.id] = rec;
+  }
+  if (excludedCount > 0) {
+    console.log(`  🚫 Skipped ${excludedCount} non-watch item${excludedCount > 1 ? "s" : ""} (vendor: ${[...EXCLUDED_VENDORS].join(", ")})`);
   }
 
   history[key] = snapshot;
@@ -367,7 +384,7 @@ async function main() {
   console.log(`\n→ Open dashboard.html and load history.json to explore.\n`);
 }
 
-module.exports = { parseSpecTables, parseSpecLabels, parseSpecAttributes, parseDescription, deriveYear, formatPrice, buildProduct, buildFullProduct, stripHtml };
+module.exports = { parseSpecTables, parseSpecLabels, parseSpecAttributes, parseDescription, deriveYear, formatPrice, buildProduct, buildFullProduct, stripHtml, isExcludedVendor, EXCLUDED_VENDORS };
 
 // Only run the scrape when this file is executed directly (`node scrape.js`),
 // not when it's require()'d for testing.
