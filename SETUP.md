@@ -119,6 +119,10 @@ Go to your GitHub repo → **Actions** tab → **ECI Jewelers Daily Inventory Sc
   filters show. Note: the richer spec fields (Model, Case, Bracelet, Dial, Bezel, Movement) only
   populate for snapshots taken *after* this feature shipped — scrape.js now saves the full record
   set instead of the lean one, so older history.json snapshots won't have them retroactively.
+- **Export to WPB Setup** is also available on the **Changes/Sold** tab, pulling the exact same
+  full attribute set as the Current Inventory version. It combines New Arrivals and Sold/Removed
+  into one file with an added "Status" column so the two stay distinguishable, and it respects
+  whatever the tab's search box currently shows (search first, then export, to scope it down).
 
 ## Try it now, without waiting for the scheduler
 
