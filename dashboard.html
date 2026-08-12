@@ -175,6 +175,7 @@
       <button class="btn secondary" id="invClearSelection" onclick="clearSelection()" style="display:none;">✕ Clear Selection</button>
       <button class="btn pale" id="fbExportBtn" onclick="exportFacebook()">📘 Export Selected to Facebook (.xlsx)</button>
       <button class="btn teal" id="wpbSetupBtn" onclick="exportTable('wpbsetup')">🏷️ Export to WPB Setup (.xlsx)</button>
+      <button class="btn teal" id="mirandaSetupBtn" onclick="exportTable('mirandafile')">🏷️ Export to WPB Setup (Miranda File)</button>
       <button class="btn gold" id="invExportBtn" onclick="exportTable('inventory')">⬇ Export to Excel</button>
     </div>
     <div class="table-wrap">
@@ -237,6 +238,7 @@
     <div style="margin-bottom:14px;display:flex;gap:10px;">
       <button class="btn green" onclick="exportTable('changes')">⬇ Export to Excel</button>
       <button class="btn teal" onclick="exportTable('wpbsetup-changes')">🏷️ Export to WPB Setup (.xlsx)</button>
+      <button class="btn teal" onclick="exportTable('mirandafile-changes')">🏷️ Export to WPB Setup (Miranda File)</button>
     </div>
     <div class="cards">
       <div class="card"><div class="icon">🟢</div><div class="val" id="chNewCount">—</div><div class="lbl">New / Back In Stock</div></div>
@@ -645,6 +647,10 @@ function updateSelectionUI() {
   document.getElementById("wpbSetupBtn").textContent = n > 0
     ? `🏷️ Export Selected to WPB Setup (${n})`
     : "🏷️ Export to WPB Setup (.xlsx)";
+
+  document.getElementById("mirandaSetupBtn").textContent = n > 0
+    ? `🏷️ Export Selected to WPB Setup (Miranda File) (${n})`
+    : "🏷️ Export to WPB Setup (Miranda File)";
 }
 
 function renderInventory() {
@@ -1019,6 +1025,24 @@ function exportTable(which) {
     const tag = (rows, status) => rows.filter(matches).map(p => ({ Status: status, ...wpbSetupRow(p) }));
     data = [...tag(changesResult.newItems, "New / Back In Stock"), ...tag(changesResult.soldItems, "Sold / Removed")];
     filename = "eci-jewelers-changes-wpb-setup.xlsx";
+  } else if (which === "mirandafile") {
+    // Same select-or-filtered pattern as the other Current Inventory exports.
+    const source = selectedIds.size > 0
+      ? Object.values(latestSnap).filter(p => selectedIds.has(String(p.id)))
+      : getFilteredInventory();
+    data = source.map(p => mirandaFileRow(p));
+    filename = "eci-jewelers-wpb-setup-miranda-file.xlsx";
+  } else if (which === "mirandafile-changes") {
+    // Same New/Sold combination + chSearch filter as the other Changes/Sold
+    // export, in the Miranda File's own column layout. The file's own
+    // "Status" column (which already exists in the template) is repurposed
+    // here to carry the New/Sold tag, since that's exactly what it's for.
+    const matches = chSearchMatcher();
+    data = [
+      ...changesResult.newItems.filter(matches).map(p => mirandaFileRow(p, "New / Back In Stock")),
+      ...changesResult.soldItems.filter(matches).map(p => mirandaFileRow(p, "Sold / Removed")),
+    ];
+    filename = "eci-jewelers-changes-wpb-setup-miranda-file.xlsx";
   }
   if (data.length === 0) { alert("Nothing to export yet — adjust filters or run a report first."); return; }
   const ws = XLSX.utils.json_to_sheet(data);
@@ -1069,6 +1093,65 @@ function wpbSetupRow(p) {
     "Image 3": images[2] || "",
     "Image 4": images[3] || "",
     "Source Listing URL": p.url || "",
+  };
+}
+
+// ── WPB Setup export, in the "Miranda File" layout ──────────────────────
+// Matches the exact column layout of the internal tracking spreadsheet WPB
+// keeps for items sourced from ECI ("Client Stock" = ECI's own Dealer SKU):
+// DATE / Status / Date Posted Web / Date Posted CR24 / Date Posted Ebay /
+// Client Stock / Brand / Model / Dial / Strap/Bracelet / # of Links* /
+// Paper / Paper Date / Box / Price Check / Wholesale Price USD / Action /
+// Chrono24 Price / Website Price / Net Profit Chrono / Net Profit WPB /
+// Images / Video. Only the fields ECI's own site can actually tell us are
+// populated (Client Stock through Box, plus a photo) — the rest (workflow
+// dates/status, pricing/profit on other marketplaces) live entirely on
+// WPB's side and are deliberately left blank rather than guessed, same
+// principle as the regular WPB Setup export's blank "WPB Listing Price".
+function mirandaRefFallback(p) {
+  if (p.referenceNumber) return p.referenceNumber;
+  // ECI doesn't always label "Reference Number" or "Model" explicitly — when
+  // that happens, the reference is still usually right in the title, as the
+  // word immediately following the brand name (e.g. "Rolex 116688
+  // Yacht-Master..." -> "116688"). Only trust it if that word actually
+  // contains a digit, so we don't return a plain model-line word by mistake.
+  const vendorWords = new Set((p.brand || "").toLowerCase().split(/\s+/).filter(Boolean));
+  const tokens = (p.name || "").split(/\s+/);
+  let i = 0;
+  while (i < tokens.length && vendorWords.has(tokens[i].toLowerCase().replace(/[.,]+$/, ""))) i++;
+  if (i < tokens.length) {
+    const cand = tokens[i].replace(/[.,]+$/, "");
+    if (/\d/.test(cand)) return cand;
+  }
+  return "";
+}
+
+function mirandaFileRow(p, status) {
+  const images = (p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
+  return {
+    "DATE": "",
+    "Status": status || "",
+    "Date Posted Web": "",
+    "Date Posted CR24": "",
+    "Date Posted Ebay": "",
+    "Client Stock": p.productCode || "",
+    "Brand": p.brand || "",
+    "Model": mirandaRefFallback(p),
+    "Dial": p.dial || "",
+    "Strap/Bracelet": p.bracelet || "",
+    "# of Links*": p.linkCount || "",
+    "Paper": p.papers || "",
+    "Paper Date": p.year || "",
+    "Box": p.box || "",
+    "Price Check ": "",
+    "Wholesale Price USD": "",
+    "Action": "",
+    "Chrono24 Price": "",
+    "Website Price": "",
+    "Net Profit Chrono": "",
+    "Net Profit WPB": "",
+    "Images": images[0] || "",
+    "Video": "",
   };
 }
 
