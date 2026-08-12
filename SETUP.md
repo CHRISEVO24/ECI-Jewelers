@@ -123,6 +123,20 @@ Go to your GitHub repo → **Actions** tab → **ECI Jewelers Daily Inventory Sc
   full attribute set as the Current Inventory version. It combines New Arrivals and Sold/Removed
   into one file with an added "Status" column so the two stay distinguishable, and it respects
   whatever the tab's search box currently shows (search first, then export, to scope it down).
+- **Export to WPB Setup (Miranda File)** is a second export format, available on both Current
+  Inventory and Changes/Sold, matching the exact column layout of WPB's internal ECI purchase-
+  tracking spreadsheet (DATE / Status / Date Posted Web / CR24 / Ebay / Client Stock / Brand /
+  Model / Dial / Strap/Bracelet / # of Links* / Paper / Paper Date / Box / Price Check / Wholesale
+  Price USD / Action / Chrono24 Price / Website Price / Net Profit Chrono / Net Profit WPB /
+  Images / Video). Only the fields ECI's site can actually answer are populated — Client Stock
+  (Dealer SKU) through Box, plus one photo. Everything else (workflow dates/status, pricing and
+  profit on other marketplaces) lives entirely on WPB's side and is deliberately left blank rather
+  than guessed. On the Changes/Sold version, the template's own "Status" column is repurposed to
+  carry the New/Sold tag. Since ECI doesn't always explicitly label "Reference Number" or "Model"
+  on a listing, the Model column falls back to pulling it from the product title (the word right
+  after the brand name, only if it contains a digit) when the labeled field is blank — this
+  recovered the reference number for the large majority of previously-blank rows when tested
+  against a real export of WPB's tracking file.
 
 ## Try it now, without waiting for the scheduler
 
