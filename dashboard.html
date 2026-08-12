@@ -234,7 +234,10 @@
       <div class="spacer"></div>
       <input type="text" id="chSearch" placeholder="🔍 Search name, SKU, reference…" style="min-width:220px;">
     </div>
-    <div style="margin-bottom:14px;"><button class="btn green" onclick="exportTable('changes')">⬇ Export to Excel</button></div>
+    <div style="margin-bottom:14px;display:flex;gap:10px;">
+      <button class="btn green" onclick="exportTable('changes')">⬇ Export to Excel</button>
+      <button class="btn teal" onclick="exportTable('wpbsetup-changes')">🏷️ Export to WPB Setup (.xlsx)</button>
+    </div>
     <div class="cards">
       <div class="card"><div class="icon">🟢</div><div class="val" id="chNewCount">—</div><div class="lbl">New / Back In Stock</div></div>
       <div class="card"><div class="icon">🔴</div><div class="val" id="chSoldCount">—</div><div class="lbl">Sold / Removed</div></div>
@@ -713,13 +716,19 @@ function runChangesReport() {
 
 document.getElementById("chSearch").addEventListener("input", renderChangesCards);
 
-function renderChangesCards() {
+// Shared by the card renderer and the WPB Setup export so "what you see is
+// what you export" — exporting always reflects the current chSearch filter.
+function chSearchMatcher() {
   const q = document.getElementById("chSearch").value.trim().toLowerCase();
-  const matches = p => !q ||
+  return p => !q ||
     (p.name||"").toLowerCase().includes(q) ||
     (p.referenceNumber||"").toLowerCase().includes(q) ||
     (p.productCode||"").toLowerCase().includes(q);
+}
 
+function renderChangesCards() {
+  const q = document.getElementById("chSearch").value.trim();
+  const matches = chSearchMatcher();
   const newItems = changesResult.newItems.filter(matches);
   const soldItems = changesResult.soldItems.filter(matches);
 
@@ -997,6 +1006,19 @@ function exportTable(which) {
       : getFilteredInventory();
     data = source.map(wpbSetupRow);
     filename = "eci-jewelers-wpb-setup.xlsx";
+  } else if (which === "wpbsetup-changes") {
+    // Same field set as the Current Inventory WPB Setup export (wpbSetupRow
+    // pulls every attribute — Model, Case, Bracelet, Dial, Bezel, Movement,
+    // Year, Box, Papers, images, etc.), applied to whatever the Changes/Sold
+    // tab currently has loaded, respecting the chSearch filter (what you see
+    // is what you export). A "Status" column is prepended so New Arrivals and
+    // Sold/Removed items stay distinguishable once combined into one sheet —
+    // useful for Sold rows too, since the source listing URL may already be
+    // dead on ECI's end even though we captured it.
+    const matches = chSearchMatcher();
+    const tag = (rows, status) => rows.filter(matches).map(p => ({ Status: status, ...wpbSetupRow(p) }));
+    data = [...tag(changesResult.newItems, "New / Back In Stock"), ...tag(changesResult.soldItems, "Sold / Removed")];
+    filename = "eci-jewelers-changes-wpb-setup.xlsx";
   }
   if (data.length === 0) { alert("Nothing to export yet — adjust filters or run a report first."); return; }
   const ws = XLSX.utils.json_to_sheet(data);
