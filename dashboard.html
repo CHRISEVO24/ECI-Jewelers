@@ -1103,10 +1103,13 @@ function wpbSetupRow(p) {
 // Client Stock / Brand / Model / Dial / Strap/Bracelet / # of Links* /
 // Paper / Paper Date / Box / Price Check / Wholesale Price USD / Action /
 // Chrono24 Price / Website Price / Net Profit Chrono / Net Profit WPB /
-// Images / Video. Only the fields ECI's own site can actually tell us are
-// populated (Client Stock through Box, plus a photo) — the rest (workflow
-// dates/status, pricing/profit on other marketplaces) live entirely on
-// WPB's side and are deliberately left blank rather than guessed, same
+// Images / Video. The fields ECI's own site can actually tell us are
+// populated (Client Stock through Box, plus a photo), and Wholesale Price
+// USD is filled with the WPB Watch Co Buy Price (95% of source asking
+// price — same formula as the Current Inventory column and the regular WPB
+// Setup export's "Est. WPB Buy Price" field). Everything else (workflow
+// dates/status, pricing/profit on other marketplaces) lives entirely on
+// WPB's side and is deliberately left blank rather than guessed, same
 // principle as the regular WPB Setup export's blank "WPB Listing Price".
 function mirandaRefFallback(p) {
   if (p.referenceNumber) return p.referenceNumber;
@@ -1128,6 +1131,13 @@ function mirandaRefFallback(p) {
 
 function mirandaFileRow(p, status) {
   const images = (p.images && p.images.length ? p.images : (p.image ? [p.image] : []));
+  // Wholesale Price USD = WPB Watch Co Buy Price (same 95%-of-source-price
+  // formula as the Current Inventory column and the regular WPB Setup
+  // export's "Est. WPB Buy Price" field), as a plain number rather than a
+  // "$"-formatted string, matching how this column's values already look in
+  // the real tracking file (e.g. 175750, 12825 — no currency symbol/commas).
+  const sourcePrice = parsePrice(p.price);
+  const wholesalePriceUsd = isNaN(sourcePrice) ? "" : Math.round(sourcePrice * (1 - WPB_BUY_DISCOUNT));
   return {
     "DATE": "",
     "Status": status || "",
@@ -1144,7 +1154,7 @@ function mirandaFileRow(p, status) {
     "Paper Date": p.year || "",
     "Box": p.box || "",
     "Price Check ": "",
-    "Wholesale Price USD": "",
+    "Wholesale Price USD": wholesalePriceUsd,
     "Action": "",
     "Chrono24 Price": "",
     "Website Price": "",
