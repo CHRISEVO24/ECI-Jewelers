@@ -1,3 +1,4 @@
+[SETUP.md](https://github.com/user-attachments/files/31039798/SETUP.md)
 # ECI Jewelers — Inventory Tracker (GitHub Actions + GitHub Pages)
 
 Same tool that was tracking linksofny.com, repointed at [ecijewelers.com](https://ecijewelers.com)
@@ -128,10 +129,12 @@ Go to your GitHub repo → **Actions** tab → **ECI Jewelers Daily Inventory Sc
   tracking spreadsheet (DATE / Status / Date Posted Web / CR24 / Ebay / Client Stock / Brand /
   Model / Dial / Strap/Bracelet / # of Links* / Paper / Paper Date / Box / Price Check / Wholesale
   Price USD / Action / Chrono24 Price / Website Price / Net Profit Chrono / Net Profit WPB /
-  Images / Video). Only the fields ECI's site can actually answer are populated — Client Stock
-  (Dealer SKU) through Box, plus one photo. Everything else (workflow dates/status, pricing and
-  profit on other marketplaces) lives entirely on WPB's side and is deliberately left blank rather
-  than guessed. On the Changes/Sold version, the template's own "Status" column is repurposed to
+  Images / Video). Client Stock (Dealer SKU) through Box, plus one photo, are filled from ECI's
+  site data. Wholesale Price USD is filled with the WPB Watch Co Buy Price (95% of source asking
+  price, same formula as the Current Inventory column and the regular WPB Setup export's "Est.
+  WPB Buy Price" field). Everything else (workflow dates/status, pricing and profit on other
+  marketplaces) lives entirely on WPB's side and is deliberately left blank rather than guessed.
+  On the Changes/Sold version, the template's own "Status" column is repurposed to
   carry the New/Sold tag. Since ECI doesn't always explicitly label "Reference Number" or "Model"
   on a listing, the Model column falls back to pulling it from the product title (the word right
   after the brand name, only if it contains a digit) when the labeled field is blank — this
