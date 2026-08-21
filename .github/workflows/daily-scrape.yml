@@ -29,6 +29,9 @@ jobs:
           node-version: '20'
 
       - name: Run inventory scraper (with retry)
+        env:
+          WC_CONSUMER_KEY: ${{ secrets.WC_CONSUMER_KEY }}
+          WC_CONSUMER_SECRET: ${{ secrets.WC_CONSUMER_SECRET }}
         run: |
           for attempt in 1 2 3; do
             echo "Scraper attempt $attempt of 3..."
