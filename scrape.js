@@ -20,6 +20,7 @@
 const https = require("https");
 const fs    = require("fs");
 const path  = require("path");
+const { createDraft } = require("./createWcDraft");
 
 const HISTORY_FILE = path.join(__dirname, "history.json");
 const LASTRUN_FILE = path.join(__dirname, "last-run.json");
@@ -347,6 +348,40 @@ async function main() {
   }
   if (excludedCount > 0) {
     console.log(`  🚫 Skipped ${excludedCount} non-watch item${excludedCount > 1 ? "s" : ""} (vendor: ${[...EXCLUDED_VENDORS].join(", ")})`);
+  }
+
+  // Detect new items vs all previous snapshots
+  const existingIds = new Set();
+  Object.values(history).forEach(snap => Object.keys(snap).forEach(k => existingIds.add(k)));
+  const newItems = Object.values(snapshot).filter(item => !existingIds.has(String(item.id)));
+  if (newItems.length > 0) {
+    console.log(`\n🆕 ${newItems.length} new item(s) detected — creating WPB drafts...`);
+    for (const item of newItems) {
+      // Map ECI fields to createDraft format
+      const draftItem = {
+        name: item.name,
+        sku: item.productCode || String(item.id),
+        id: item.id,
+        price: item.price || '',
+        brand: item.brand || item.vendor || '',
+        referenceNumber: item.referenceNumber || '',
+        description: item.description || item.name,
+        movement: item.movement || '',
+        caseSize: item.caseSize || '',
+        caseMaterial: item.caseMaterial || '',
+        dialDetails: item.dial || '',
+        bezelDetails: item.bezel || '',
+        bandMaterial: item.bracelet || '',
+        boxPapers: item.papers || '',
+        year: item.year || '',
+        image: item.images && item.images[0] ? item.images[0] : '',
+        images: item.images ? item.images.slice(1) : [],
+        permalink: item.url || '',
+      };
+      await createDraft(draftItem, 'ECI Jewelers');
+    }
+  } else {
+    console.log('No new items detected since last scrape.');
   }
 
   history[key] = snapshot;
