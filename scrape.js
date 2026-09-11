@@ -299,22 +299,14 @@ async function fetchAllProducts() {
 function loadHistory() { try { return JSON.parse(fs.readFileSync(HISTORY_FILE, "utf8")); } catch { return {}; } }
 function saveHistory(h) { fs.writeFileSync(HISTORY_FILE, JSON.stringify(h)); } // no pretty-print = smaller file
 
-// Keep only last 30 days of snapshots
+// Keep last 20 snapshots to stay under GitHub 100MB limit
 function trimHistory(history) {
-  const cutoff    = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
-  const before    = Object.keys(history).length;
-  const trimmed   = {};
-
-  for (const key of Object.keys(history)) {
-    if (key.slice(0, 10) >= cutoffStr) trimmed[key] = history[key];
-  }
-
-  const removed = before - Object.keys(trimmed).length;
-  if (removed > 0) {
-    console.log(`  🗑️  Trimmed ${removed} snapshot${removed > 1 ? "s" : ""} older than 30 days`);
-  }
+  const keys = Object.keys(history).sort();
+  const keep = keys.slice(-20);
+  const trimmed = {};
+  for (const k of keep) trimmed[k] = history[k];
+  const removed = keys.length - keep.length;
+  if (removed > 0) console.log(`   Trimmed ${removed} old snapshot(s), keeping ${keep.length}`);
   return trimmed;
 }
 
