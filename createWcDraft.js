@@ -62,6 +62,15 @@ async function createDraft(item, source) {
     return null;
   }
 
+  // Check if SKU already exists — skip if so to prevent duplicates
+  const wpbSku = `${(source||'').replace(/\s+/g,'-').toUpperCase()}-${item.sku || item.id}`;
+  try {
+    const { body: existing } = await wcRequest('GET', `/products?sku=${encodeURIComponent(wpbSku)}&status=any&per_page=1`);
+    if (Array.isArray(existing) && existing.length > 0) {
+      return { skipped: true, sku: wpbSku };
+    }
+  } catch(e) { /* if check fails, proceed */ }
+
   // Build description
   const descParts = [];
   if (item.description && item.description !== item.name) descParts.push(item.description);
